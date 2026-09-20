@@ -1212,6 +1212,7 @@
       liveDemo: "Live demo", mapLoading: "Loading map…",
       mapError: "Couldn't load the map. Check your internet connection.", retry: "Try again",
       kmh: "km/h", nextStop: "Next stop", atStop: "At stop", locFail: "Couldn't get your location",
+      locTimeout: "Couldn't get a location fix. Check that location is allowed for this page, then try again.",
       win10: "10 min", win30: "30 min", win60: "1 hour", win360: "6 hours",
       complete: "complete", searchBuses: "Search buses…", noBuses: "No buses found",
       title: "PUST Bus Status", departure: "Departure", bus: "Bus",
@@ -1303,6 +1304,7 @@
       liveDemo: "লাইভ ডেমো", mapLoading: "ম্যাপ লোড হচ্ছে…",
       mapError: "ম্যাপ লোড করা যায়নি। ইন্টারনেট সংযোগ দেখুন।", retry: "আবার চেষ্টা করুন",
       kmh: "কিমি/ঘণ্টা", nextStop: "পরবর্তী স্টপ", atStop: "স্টপে", locFail: "আপনার অবস্থান পাওয়া যায়নি",
+      locTimeout: "লোকেশন পাওয়া যায়নি। এই পেজের জন্য লোকেশন অনুমতি দেওয়া আছে কিনা দেখে আবার চেষ্টা করুন।",
       win10: "১০ মিনিট", win30: "৩০ মিনিট", win60: "১ ঘণ্টা", win360: "৬ ঘণ্টা",
       complete: "সম্পন্ন", searchBuses: "বাস খুঁজুন…", noBuses: "কোনো বাস পাওয়া যায়নি",
       title: "পাস্ট বাস স্ট্যাটাস", departure: "প্রস্থান", bus: "বাস",
@@ -1450,7 +1452,7 @@
     } catch (e) { SB = null; return; }
     fetchAuthCfg();
     fetchBuses();
-    subscribeFleetRealtime();
+    if (USE_SUPABASE_FLEET) subscribeFleetRealtime();   // fleet now comes from TIMETABLE, not Supabase — see below
     subscribeStatsRealtime();
     try {
       SB.auth.onAuthStateChange(function (evt, s) { applySbSession(s); });
@@ -3470,11 +3472,11 @@
 
      Your total is upserted to the `rider_stats` table in Supabase (about
      every 30 s while sharing), and the Leaderboard reads the live ranking
-     from there. Offline, the sample LB_DEMO riders are shown instead,
-     like the original demo.
+     from there. No local/offline ranking exists any more — until Supabase
+     has real rows, the Leaderboard screen just shows an empty state.
      ===================================================== */
   var LB = { open: false };
-  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now() };
+  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0 };
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
 
   function shareMin() { return (+load("pust-share-ms") || 0) / 60000; }
@@ -3485,6 +3487,7 @@
     $("rShare").setAttribute("aria-checked", SH.on && SH.bus === R.n ? "true" : "false");
   }
   function stopShare(silent) {
+    clearTimeout(SH.guard); SH.guard = 0;
     if (SH.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(SH.watch);
     var was = SH.on;
     SH.on = false; SH.bus = 0; SH.watch = null; SH.fix = 0;
@@ -3493,19 +3496,39 @@
     if (LB.open) renderLeaderboard();
     if (was && !silent) showToast(I18N[lang].shareOff);
   }
+  // Starts by asking for ONE fix (getCurrentPosition) before switching the toggle on, so a denied
+  // or blocked request (e.g. the browser's Permissions-Policy blocking geolocation for an embedded
+  // page) shows a clear error instead of leaving the switch stuck "on" with no real data behind it.
+  // The 12s guard covers browsers/contexts that never call back at all.
   function startShare(n) {
     var t = I18N[lang];
     if (!navigator.geolocation) { showToast(t.locFail); return; }
     stopShare(true);
-    SH.on = true; SH.bus = n; SH.fix = 0; SH.last = Date.now();
-    SH.watch = navigator.geolocation.watchPosition(function () { SH.fix = Date.now(); }, function (err) {
-      if (err && err.code === 1) { stopShare(true); showToast(I18N[lang].locFail); }     // permission denied
-    }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
-    updateShareUi();
-    showToast(t.shareOn);
+    SH.bus = n; SH.fix = 0; SH.last = Date.now();
+    clearTimeout(SH.guard);
+    SH.guard = setTimeout(function () {
+      if (SH.bus === n && !SH.on) { SH.bus = 0; showToast(t.locTimeout); }
+    }, 12000);
+    navigator.geolocation.getCurrentPosition(function () {
+      if (SH.bus !== n) return;                    // user switched/cancelled while this was pending
+      clearTimeout(SH.guard); SH.guard = 0;
+      SH.on = true; SH.fix = Date.now();
+      SH.watch = navigator.geolocation.watchPosition(function () { SH.fix = Date.now(); }, function (err) {
+        if (err && (err.code === 1 || err.code === 2)) { stopShare(true); showToast(t.locFail); }
+      }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+      updateShareUi();
+      showToast(t.shareOn);
+      if (LB.open) renderLeaderboard();
+    }, function (err) {
+      if (SH.bus !== n) return;
+      clearTimeout(SH.guard); SH.guard = 0;
+      SH.bus = 0;
+      showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
   }
   function toggleShare(n) {
-    if (SH.on && SH.bus === n) stopShare(); else startShare(n);
+    if (SH.on && SH.bus === n) { stopShare(); return; }
+    startShare(n);
   }
   var lastStatSync = 0;
   function syncRiderStats() {
