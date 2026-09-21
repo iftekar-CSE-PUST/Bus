@@ -245,6 +245,14 @@
   @keyframes blip { 50% { opacity: 0.2; } }
   .sres-msg { padding: 2px 4px; font-size: 13.5px; color: var(--muted); }
 
+  .notice-bar { margin: 18px 0 4px; padding: 12px 14px; border-radius: 14px; font-size: 14px;
+    line-height: 1.45; font-weight: 600; border: 1px solid transparent; }
+  .notice-info { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.35); color: #1d4ed8; }
+  .notice-warning { background: rgba(240,145,58,.14); border-color: rgba(240,145,58,.4); color: #b45309; }
+  .notice-urgent { background: rgba(229,88,110,.14); border-color: rgba(229,88,110,.45); color: #be123c; }
+  [data-theme="dark"] .notice-info { color: #93c5fd; }
+  [data-theme="dark"] .notice-warning { color: #fcd34d; }
+  [data-theme="dark"] .notice-urgent { color: #fda4af; }
   .features-title { margin: 26px 0 12px 4px; font-size: 18px; font-weight: 700; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .tile {
@@ -874,6 +882,8 @@
     <div class="sres" id="sres" hidden></div>
   </section>
 
+  <div class="notice-bar" id="noticeBar" role="status" hidden></div>
+
   <h2 class="features-title" data-i18n="features">Features</h2>
   <section class="grid" id="grid"></section>
 </main>
@@ -1451,8 +1461,10 @@
       });
     } catch (e) { SB = null; return; }
     fetchAuthCfg();
+    fetchSiteConfig();
     fetchBuses();
-    if (USE_SUPABASE_FLEET) subscribeFleetRealtime();   // fleet now comes from TIMETABLE, not Supabase — see below
+    subscribeFleetRealtime();
+    subscribeSiteRealtime();
     subscribeStatsRealtime();
     try {
       SB.auth.onAuthStateChange(function (evt, s) { applySbSession(s); });
@@ -1500,40 +1512,221 @@
     if (SB) SB.auth.updateUser({ data: { display_name: nm } }).catch(function () {});
   }
 
-  /* ----- bus fleet: `buses` view in Supabase, demo data as fallback -----
-     The view returns departure/updated timestamps relative to now(), so
-     the list stays fresh. Edit the buses_def table to change the fleet. */
+  /* =====================================================
+     FLEET + ROUTES + TIMETABLE — loaded from Supabase
+     -----------------------------------------------------
+     The whole timetable lives in the database now:
+       places      -> every stop with its coordinates
+       routes      -> name/colour/duration/speed per route
+       route_stops -> the ordered stop list of each route
+       buses       -> the fleet (bus number + names)
+       timetable   -> each run: bus, departure time, route, who rides
+     The constants further down (PLACES / ROUTES / TIMETABLE) stay in the
+     file as a fallback, so the app still works offline or if the network
+     is down — Supabase data simply overwrites them once it arrives.
+     ===================================================== */
   var busesP = null;
-  /* The fleet now comes from TIMETABLE (below). Supabase still holds the old demo buses
-     (Bus-1 ... Bus-7 on 2 demo routes), so reading them would replace the real ones.
-     Set this to true only after you have put the 8 buses of TIMETABLE into buses_def. */
-  var USE_SUPABASE_FLEET = false;
-  function fetchBuses(force) {
-    if (!USE_SUPABASE_FLEET) { refreshTrips(); return Promise.resolve(false); }
+  var DATA_FROM_DB = false;
+
+  function applyDbData(places, routes, rstops, buses, runs) {
+    // places -> PLACES { id: { en, bn, ll:[lat,lng] } }
+    var P = {};
+    places.forEach(function (r) {
+      P[r.id] = { en: r.name_en, bn: r.name_bn, ll: [r.lat, r.lng] };
+    });
+
+    // route_stops -> ordered arrays per route
+    var byRoute = {};
+    rstops.slice().sort(function (a, b) { return a.seq - b.seq; })
+      .forEach(function (r) { (byRoute[r.route_id] = byRoute[r.route_id] || []).push(P[r.place_id]); });
+
+    var Rs = routes.filter(function (r) { return r.active !== false; })
+      .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); })
+      .map(function (r) {
+        return {
+          id: r.id, color: r.color || "#3b82f6", mins: r.mins || 45,
+          kmh: r.kmh || 30, loop: r.loop !== false,
+          name: { en: r.name_en, bn: r.name_bn },
+          stops: (byRoute[r.id] || []).filter(Boolean)
+        };
+      }).filter(function (r) { return r.stops.length > 1; });
+    if (!Rs.length) return false;
+
+    // buses -> BUS_NAMES, timetable -> TIMETABLE
+    var names = {}, TT = {};
+    buses.filter(function (b) { return b.active !== false; })
+      .forEach(function (b) { names[b.n] = { en: b.name_en, bn: b.name_bn }; });
+    runs.filter(function (r) { return r.active !== false && names[r.bus_n]; })
+      .sort(function (a, b) { return String(a.depart_at).localeCompare(String(b.depart_at)); })
+      .forEach(function (r) {
+        (TT[r.bus_n] = TT[r.bus_n] || []).push([String(r.depart_at).slice(0, 5), r.route_id, r.who || "b"]);
+      });
+    Object.keys(TT).forEach(function (n) {           // drop runs whose route is missing
+      TT[n] = TT[n].filter(function (run) {
+        return Rs.some(function (x) { return x.id === run[1]; });
+      });
+      if (!TT[n].length) delete TT[n];
+    });
+    if (!Object.keys(TT).length) return false;
+
+    PLACES = P; ROUTES = Rs; BUS_NAMES = names; TIMETABLE = TT;
+    DATA_FROM_DB = true;
+    refreshTrips();
+    if (M.open && M.ready) rebuildMapBuses();
+    return true;
+  }
+
+  /* =====================================================
+     SITE CONTROL DATA — settings, tiles, notices, legal text
+     -----------------------------------------------------
+     These come from Supabase too, so the dashboard controls the
+     whole site. Each one falls back to the built-in values when
+     the tables are missing or the network is down.
+     ===================================================== */
+  var CFG = {};        // app_settings  -> { key: value }
+  var SITE_TILES = null;  // feature_tiles -> [{ key, en, bn, color }]
+  var NOTICE = null;   // the notice banner currently in force
+  var LEGAL_TEXT = null;    // legal_sections -> { guidelines: [{en,bn}], ... }
+
+  function cfg(key, dflt) {
+    var v = CFG[key];
+    return (v === undefined || v === null || v === "") ? dflt : v;
+  }
+  function cfgOn(key, dflt) {              // boolean setting
+    var v = CFG[key];
+    if (v === undefined || v === null || v === "") return dflt;
+    return String(v).toLowerCase() === "true";
+  }
+  function cfgNum(key, dflt) {
+    var n = parseFloat(CFG[key]);
+    return isFinite(n) ? n : dflt;
+  }
+
+  function fetchSiteConfig() {
     if (!SB) return Promise.resolve(false);
+    return Promise.all([
+      SB.from("app_settings").select("key, value"),
+      SB.from("feature_tiles").select("key, label_en, label_bn, color, enabled, sort_order"),
+      SB.from("notices").select("body_en, body_bn, level, active, starts_at, ends_at").eq("active", true),
+      SB.from("legal_sections").select("doc, body_en, body_bn, sort_order, active")
+    ]).then(function (r) {
+      if (!r[0].error && r[0].data) {
+        var c = {};
+        r[0].data.forEach(function (x) { c[x.key] = x.value; });
+        CFG = c;
+      }
+      if (!r[1].error && r[1].data && r[1].data.length) {
+        SITE_TILES = r[1].data.filter(function (x) { return x.enabled !== false; })
+          .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); })
+          .map(function (x) { return { key: x.key, en: x.label_en, bn: x.label_bn, color: x.color }; });
+      }
+      if (!r[2].error) NOTICE = pickNotice(r[2].data || []);
+      if (!r[3].error && r[3].data && r[3].data.length) {
+        var L = {};
+        r[3].data.filter(function (x) { return x.active !== false; })
+          .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); })
+          .forEach(function (x) { (L[x.doc] = L[x.doc] || []).push({ en: x.body_en, bn: x.body_bn }); });
+        LEGAL_TEXT = L;
+      }
+      applySiteConfig();
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  function pickNotice(rows) {
+    var now = Date.now();
+    var live = rows.filter(function (n) {
+      if (n.active === false) return false;
+      if (n.starts_at && new Date(n.starts_at).getTime() > now) return false;
+      if (n.ends_at && new Date(n.ends_at).getTime() < now) return false;
+      return true;
+    });
+    return live.length ? live[live.length - 1] : null;
+  }
+
+  // Push the loaded config into the screen.
+  function applySiteConfig() {
+    renderTiles();
+    renderNotice();
+    if (typeof render === "function") render();
+    if (ST.open) renderSettings();
+    if (ST.sub) renderSub();
+  }
+
+  // Rebuild the home-screen tiles from feature_tiles (+ the on/off switches).
+  function renderTiles() {
+    var grid = $("grid");
+    if (!grid) return;
+    var list = (SITE_TILES || FEATURES.map(function (f) {
+      return { key: f.key, en: I18N.en[f.key], bn: I18N.bn[f.key], color: f.color };
+    })).filter(function (t) {
+      if (t.key === "liveChat" && !cfgOn("chat_enabled", true)) return false;
+      if (t.key === "liveMap" && !cfgOn("map_enabled", true)) return false;
+      if (t.key === "leaderboard" && !cfgOn("leaderboard_enabled", true)) return false;
+      return true;
+    });
+    var want = list.map(function (t) { return t.key + "|" + t.color; }).join(",");
+    if (grid.dataset.sig === want) { paintTileLabels(list); return; }
+    grid.dataset.sig = want;
+    grid.innerHTML = "";
+    list.forEach(function (t) {
+      var def = FEATURES.filter(function (f) { return f.key === t.key; })[0];
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tile";
+      b.dataset.key = t.key;
+      b.style.setProperty("--c", t.color || (def && def.color) || "#4caf6b");
+      b.innerHTML = '<span class="ico">' + ((def && def.svg) || "") + '</span><span class="lbl"></span>';
+      b.addEventListener("click", function () {
+        if (t.key === "settings") openSettings();
+        else if (t.key === "liveMap") openMap();
+        else if (t.key === "liveStatus") openStatus();
+        else if (t.key === "liveChat") openChatList();
+        else if (t.key === "leaderboard") openLeaderboard();
+        else showToast(tileLabel(t) + " — " + I18N[lang].soon);
+      });
+      grid.appendChild(b);
+    });
+    paintTileLabels(list);
+  }
+  function tileLabel(t) {
+    return (lang === "bn" ? t.bn : t.en) || I18N[lang][t.key] || t.key;
+  }
+  function paintTileLabels(list) {
+    list.forEach(function (t) {
+      var el = document.querySelector('.tile[data-key="' + t.key + '"] .lbl');
+      if (el) el.textContent = tileLabel(t);
+    });
+  }
+
+  // The notice banner above the feature grid.
+  function renderNotice() {
+    var host = $("noticeBar");
+    if (!host) return;
+    if (!NOTICE) { host.hidden = true; host.textContent = ""; return; }
+    var txt = (lang === "bn" ? NOTICE.body_bn : NOTICE.body_en) || "";
+    if (!txt) { host.hidden = true; return; }
+    host.hidden = false;
+    host.className = "notice-bar notice-" + (NOTICE.level || "info");
+    host.textContent = txt;
+  }
+
+  function fetchBuses(force) {
+    if (!SB) { refreshTrips(); return Promise.resolve(false); }
     if (!force && busesP) return busesP;
-    busesP = SB.from("buses")
-      .select("n, route, rev, departure_at, duration_min, kmh, late_min, updated_at")
-      .order("n", { ascending: true })
-      .then(function (res) {
-        busesP = null;
-        if (res.error || !res.data || !res.data.length) return false;
-        TRIPS = res.data.map(function (r) {
-          return {
-            n: r.n, route: r.route || "r1", rev: !!r.rev,
-            dep: (new Date(r.departure_at).getTime() - T0) / 60000,
-            dur: r.duration_min || 30,
-            upd: Math.max(0, (Date.now() - new Date(r.updated_at).getTime()) / 60000),
-            kmh: r.kmh || 30, late: r.late_min || 0
-          };
-        });
-        if (S.open) renderStatus();
-        if (R.open) renderRoute();
-        if (CH.listOpen) renderChatList();
-        if (LB.open) renderLeaderboard();
-        return true;
-      })
-      .catch(function () { busesP = null; return false; });
+    busesP = Promise.all([
+      SB.from("places").select("id, name_en, name_bn, lat, lng"),
+      SB.from("routes").select("id, name_en, name_bn, color, mins, kmh, loop, active, sort_order"),
+      SB.from("route_stops").select("route_id, seq, place_id"),
+      SB.from("buses").select("n, name_en, name_bn, active"),
+      SB.from("timetable").select("bus_n, depart_at, route_id, who, active")
+    ]).then(function (res) {
+      busesP = null;
+      for (var i = 0; i < res.length; i++) {
+        if (res[i].error || !res[i].data || !res[i].data.length) { refreshTrips(); return false; }
+      }
+      return applyDbData(res[0].data, res[1].data, res[2].data, res[3].data, res[4].data);
+    }).catch(function () { busesP = null; refreshTrips(); return false; });
     return busesP;
   }
 
@@ -1594,24 +1787,7 @@
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
   /* ---------- Feature grid ---------- */
-  var grid = $("grid");
-  FEATURES.forEach(function (f) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "tile";
-    b.dataset.key = f.key;
-    b.style.setProperty("--c", f.color);
-    b.innerHTML = '<span class="ico">' + f.svg + '</span><span class="lbl"></span>';
-    b.addEventListener("click", function () {
-      if (f.key === "settings") openSettings();
-      else if (f.key === "liveMap") openMap();
-      else if (f.key === "liveStatus") openStatus();
-      else if (f.key === "liveChat") openChatList();
-      else if (f.key === "leaderboard") openLeaderboard();
-      else showToast(I18N[lang][f.key] + " — " + I18N[lang].soon);
-    });
-    grid.appendChild(b);
-  });
+  renderTiles();   // built from feature_tiles in Supabase, or FEATURES as fallback
 
   /* ---------- Rendering ---------- */
   function greetingKey() {
@@ -1644,12 +1820,17 @@
   function render() {
     var t = I18N[lang];
     root.lang = lang;
-    document.title = session ? t.title : t.appName;
+    var siteName = cfg(lang === "bn" ? "site_name_bn" : "site_name_en", t.appName);
+    document.title = session ? t.title : siteName;
     document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t[el.dataset.i18n]; });
+    // after the generic pass, so the name from app_settings wins
+    var h1 = document.querySelector('h1[data-i18n="appName"]');
+    if (h1) h1.textContent = siteName;
     document.querySelectorAll("[data-i18n-ph]").forEach(function (el) { el.placeholder = t[el.dataset.i18nPh]; });
     var ciSyncEl = $("ciSync");
     if (ciSyncEl) ciSyncEl.textContent = t[chatRemoteMode() ? "chatSynced" : "chatDemo"];
-    document.querySelectorAll(".tile").forEach(function (el) { el.querySelector(".lbl").textContent = t[el.dataset.key]; });
+    renderTiles();
+    renderNotice();
     $("greeting").textContent = t[greetingKey()];
     $("langLabel").textContent = t.langLabel;
     var name = userName();
@@ -2310,9 +2491,10 @@
   /* =====================================================
      BUS LIVE STATUS  (list of buses with progress)
      -----------------------------------------------------
-     TRIPS is built from TIMETABLE (real PUST notice) by buildTrips(), and
-     rebuilt whenever this screen opens. To use Supabase for the fleet again,
-     see USE_SUPABASE_FLEET near fetchBuses().
+     TRIPS is built from TIMETABLE by buildTrips() and rebuilt whenever this
+     screen opens. PLACES / ROUTES / BUS_NAMES / TIMETABLE below are the
+     offline fallback — fetchBuses() replaces them with the Supabase tables
+     (places, routes, route_stops, buses, timetable) as soon as they load.
      dep = minutes from now the bus left (negative = already left),
      dur = trip length in minutes, upd = minutes since the bus last
      reported, late = minutes behind schedule (0 = on time).
@@ -2739,6 +2921,13 @@
       return getBlocked().indexOf(m.u) < 0;
     });
   }
+  function dropCached(id) {                 // remove a deleted message from every room cache
+    Object.keys(CH.cache).forEach(function (k) {
+      var arr = CH.cache[k];
+      if (!arr) return;
+      for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === id) arr.splice(i, 1);
+    });
+  }
   function pushCached(n, m) {
     var arr = CH.cache[n] || (CH.cache[n] = []);
     if (arr.some(function (x) { return x.id === m.id; })) return;
@@ -2790,8 +2979,21 @@
           if (CH.open && CH.n === n) renderChat();
           else if (CH.listOpen) renderChatList();
         })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" },
+        function (payload) {                       // a message was removed (by its author or an admin)
+          var gone = payload && payload.old && payload.old.id;
+          if (!gone) return;
+          dropCached(gone);
+          if (CH.open) renderChat();
+          else if (CH.listOpen) renderChatList();
+        })
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_announcements", filter: "bus_n=eq." + n },
         function (payload) {
+          if (payload && payload.eventType === "DELETE") {
+            delete CH.ann[n];
+            if (CH.open && CH.n === n) renderChat();
+            return;
+          }
           if (!payload || !payload.new || payload.new.bus_n !== n) return;
           CH.ann[n] = { t: payload.new.body, u: payload.new.user_name, ts: new Date(payload.new.updated_at).getTime() };
           if (CH.open && CH.n === n) renderChat();
@@ -2817,6 +3019,11 @@
         pushCached(n, rowToMsg(p.new));
         if (CH.listOpen) renderChatList();
       })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, function (p) {
+        if (!p || !p.old || !p.old.id) return;
+        dropCached(p.old.id);
+        if (CH.listOpen) renderChatList();
+      })
       .subscribe();
   }
   function unsubscribeChatList() {
@@ -2827,22 +3034,49 @@
   /* =====================================================
      GLOBAL REALTIME — everything updates without refreshing
      -----------------------------------------------------
-     • buses_def changes   -> the bus list, route screens and
-       even the open map rebuild instantly (edit the fleet in
-       the dashboard and watch every rider's screen change)
+     • buses / timetable / routes / route_stops / places changes ->
+       the bus list, route screens and even the open map rebuild
+       instantly (edit the fleet in the dashboard and watch every
+       rider's screen change)
+     • app_settings / feature_tiles / notices / legal_sections ->
+       the site name, home screen tiles, notice banner and legal
+       pages all update without a refresh
      • rider_stats changes -> the leaderboard re-ranks live
      • one presence channel ("pust-online") -> true "riders
        active" numbers for every bus room, on every screen
      ===================================================== */
-  var fleetCh = null, statsCh = null, presCh = null, presReady = false;
+  var fleetCh = null, statsCh = null, presCh = null, siteCh = null, presReady = false;
+
+  // Collapse a burst of changes into one refresh.
+  function debounce(fn, ms) {
+    var t = 0;
+    return function () { clearTimeout(t); t = setTimeout(fn, ms); };
+  }
+
+  /* Fleet, routes, stops and timetable — any edit rebuilds the bus list,
+     the route screens and the live map, on every open device. */
   function subscribeFleetRealtime() {
     if (!SB || fleetCh) return;
+    var reload = debounce(function () {
+      fetchBuses(true).then(function (ok) { if (ok && M.open && M.ready) rebuildMapBuses(); });
+    }, 250);
     fleetCh = SB.channel("pust-fleet");
-    fleetCh
-      .on("postgres_changes", { event: "*", schema: "public", table: "buses_def" }, function () {
-        fetchBuses(true).then(function (ok) { if (ok && M.open && M.ready) rebuildMapBuses(); });
-      })
-      .subscribe();
+    ["buses", "timetable", "routes", "route_stops", "places"].forEach(function (tbl) {
+      fleetCh.on("postgres_changes", { event: "*", schema: "public", table: tbl }, reload);
+    });
+    fleetCh.subscribe();
+  }
+
+  /* Settings, tiles, notices and legal text — the dashboard controls
+     the look of the site while people are using it. */
+  function subscribeSiteRealtime() {
+    if (!SB || siteCh) return;
+    var reload = debounce(function () { fetchSiteConfig(); }, 250);
+    siteCh = SB.channel("pust-site");
+    ["app_settings", "feature_tiles", "notices", "legal_sections"].forEach(function (tbl) {
+      siteCh.on("postgres_changes", { event: "*", schema: "public", table: tbl }, reload);
+    });
+    siteCh.subscribe();
   }
   function subscribeStatsRealtime() {
     if (!SB || statsCh) return;
@@ -3070,7 +3304,7 @@
   }
 
   function sendChat() {
-    var inp = $("cInput"), text = inp.value.trim().slice(0, 500);
+    var inp = $("cInput"), text = inp.value.trim().slice(0, cfgNum("chat_max_length", 500));
     if (!text) return;
     var t = I18N[lang], n0 = CH.n, rep = CH.reply ? { u: CH.reply.u, t: CH.reply.t } : null;
     if (CH.mode === "ann") {
@@ -3361,13 +3595,18 @@
           }).join("") + '</div>'
         : '<div class="set-card"><p class="sub-empty">' + esc(t.noBlocked) + '</p></div>';
     } else if (k === "guidelines") {
-      h = '<div class="set-card">' + ["g1", "g2", "g3", "g4", "g5", "g6"].map(function (g) {
-        return '<div class="set-item"><span class="si">' + IC_CHECK + '</span><span>' + esc(t[g]) + '</span></div>';
+      var gl = (LEGAL_TEXT && LEGAL_TEXT.guidelines) ||
+        ["g1", "g2", "g3", "g4", "g5", "g6"].map(function (g) { return { en: I18N.en[g], bn: I18N.bn[g] }; });
+      h = '<div class="set-card">' + gl.map(function (g) {
+        return '<div class="set-item"><span class="si">' + IC_CHECK + '</span><span>' +
+               esc(lang === "bn" ? (g.bn || g.en) : (g.en || g.bn)) + '</span></div>';
       }).join("") + '</div>';
     } else if (k === "privacy" || k === "terms") {
-      var keys = k === "privacy" ? ["pv1", "pv2", "pv3"] : ["tm1", "tm2", "tm3"];
+      var fb = k === "privacy" ? ["pv1", "pv2", "pv3"] : ["tm1", "tm2", "tm3"];
+      var docs = (LEGAL_TEXT && LEGAL_TEXT[k]) ||
+        fb.map(function (x) { return { en: I18N.en[x], bn: I18N.bn[x] }; });
       h = '<p class="sub-note">' + esc(t.docTemplate) + '</p><div class="set-card set-doc">' +
-        keys.map(function (x) { return '<p>' + esc(t[x]) + '</p>'; }).join("") + '</div>';
+        docs.map(function (x) { return '<p>' + esc(lang === "bn" ? (x.bn || x.en) : (x.en || x.bn)) + '</p>'; }).join("") + '</div>';
     }
     body.innerHTML = h;
   }
@@ -3480,7 +3719,9 @@
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
 
   function shareMin() { return (+load("pust-share-ms") || 0) / 60000; }
-  function ptsOf(min) { return Math.floor(min / 6); }                    // 10 points per hour
+  function ptsOf(min) {                                  // points_per_hour in app_settings
+    return Math.floor(min * cfgNum("points_per_hour", 10) / 60);
+  }
   function fmtN(n) { return num(String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",")); }
 
   function updateShareUi() {
@@ -3955,5 +4196,6 @@
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e348421e48814e',t:'MTc4OTkzMzAyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
