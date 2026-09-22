@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PUST Bus Tracking</title>
+<!-- Runtime configuration.
+     env.js is GENERATED from .env by `node scripts/generate-env.js` and is
+     git-ignored, so no token is ever committed. It is optional: if it is
+     missing the app falls back to the meta tag below, then to the
+     `mapbox_access_token` row in Supabase app_settings. -->
+<meta name="mapbox-token" content="">
+<script src="env.js" onerror="window.ENV=window.ENV||{}"></script>
+<link rel="preconnect" href="https://api.mapbox.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -695,15 +703,29 @@
     font-size: 13px; font-weight: 600;
   }
   .livepill i { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; animation: pulse 1.4s ease-out infinite; }
+  .livepill.is-live i { background: #4caf6b; animation: pulse-g 1.4s ease-out infinite; }
+  .livepill.is-upd i  { background: #f0b429; animation: none; }
+  .livepill.is-off i  { background: #9a9aa1; animation: none; }
+  @keyframes pulse-g { 0% { box-shadow: 0 0 0 0 rgba(76, 175, 107, 0.55); } 100% { box-shadow: 0 0 0 8px rgba(76, 175, 107, 0); } }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); } 100% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes ring { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
 
   .mapwrap { position: relative; flex: 1; min-height: 0; }
   #map { position: absolute; inset: 0; z-index: 0; background: var(--track); }
-  .locate { position: absolute; z-index: 5; right: 10px; top: 84px; width: 40px; height: 40px; border-radius: 12px; }
+  .locate { position: absolute; z-index: 6; right: 10px; top: 84px; width: 40px; height: 40px; border-radius: 12px; transition: top 0.25s ease; }
+  .mapwrap.has-panel .locate { top: 182px; }
   .locate svg { width: 22px; height: 22px; }
 
+  .mnote {
+    position: absolute; z-index: 5; left: 12px; right: 12px; top: 12px;
+    max-width: 380px; margin: 0 auto; padding: 11px 15px; border-radius: 16px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    border: 1px solid var(--btn-border); box-shadow: var(--shadow);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    font-size: 13.5px; line-height: 1.45; color: var(--muted); text-align: center;
+  }
+  .mnote[hidden] { display: none !important; }
   .maploading {
     position: absolute; inset: 0; z-index: 6; padding: 24px; text-align: center;
     display: grid; place-content: center; justify-items: center; gap: 12px;
@@ -713,14 +735,42 @@
   .spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--track); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
   .retry { background: var(--accent); color: #fff; font-weight: 600; padding: 10px 18px; border-radius: 12px; }
 
-  .mapscreen .leaflet-container { font-family: inherit; }
-  .mapscreen .leaflet-bar a { background: var(--card); color: var(--text); border-bottom-color: var(--btn-border); }
-  .mapscreen .leaflet-bar { border: 1px solid var(--btn-border); box-shadow: var(--shadow); }
-  .mapscreen .leaflet-control-attribution { background: color-mix(in srgb, var(--card) 78%, transparent); color: var(--muted); font-size: 10px; }
-  .mapscreen .leaflet-control-attribution a { color: var(--accent); }
+  /* ---- Mapbox GL skin, matched to the app's tokens ---- */
+  .mapscreen .mapboxgl-map { font: inherit; }
+  .mapscreen .mapboxgl-ctrl-group { background: var(--card); border: 1px solid var(--btn-border); box-shadow: var(--shadow); border-radius: 12px; overflow: hidden; }
+  .mapscreen .mapboxgl-ctrl-group button + button { border-top: 1px solid var(--btn-border); }
+  .mapscreen .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: var(--mbicon, none); }
+  .mapscreen .mapboxgl-ctrl-attrib { background: color-mix(in srgb, var(--card) 78%, transparent); color: var(--muted); font-size: 10px; border-radius: 8px; }
+  .mapscreen .mapboxgl-ctrl-attrib a { color: var(--accent); }
+  .mapscreen .mapboxgl-popup-content { background: var(--card); color: var(--text); border-radius: 12px; box-shadow: var(--shadow); font-size: 13.5px; padding: 8px 12px; }
+  .mapscreen .mapboxgl-popup-tip { border-top-color: var(--card); border-bottom-color: var(--card); }
+  :root[data-theme="dark"] .mapscreen, html:not([data-theme="light"]) .mapscreen { --mbicon: invert(1) hue-rotate(180deg); }
 
-  .bm-wrap { background: none; border: 0; }
-  .bm { position: relative; width: 44px; height: 44px; }
+  /* ---- live bus info panel ---- */
+  .mpanel {
+    position: absolute; z-index: 5; left: 12px; right: 12px; top: 12px;
+    max-width: 380px; margin: 0 auto; padding: 12px 14px; border-radius: 18px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    border: 1px solid var(--btn-border); box-shadow: var(--shadow);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .mpanel[hidden] { display: none !important; }
+  .mp-top { display: flex; align-items: center; gap: 10px; }
+  .mp-top b { font-size: 16px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-badge { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .mp-badge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .mp-badge.live { color: #2f9e57; background: color-mix(in srgb, #4caf6b 16%, transparent); }
+  .mp-badge.upd  { color: #b8860b; background: color-mix(in srgb, #f0b429 20%, transparent); }
+  .mp-badge.off  { color: #d9455f; background: color-mix(in srgb, #e5586e 16%, transparent); }
+  .mp-route { display: block; margin-top: 3px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .mp-grid div { text-align: center; }
+  .mp-grid b { display: block; font-size: 15px; font-weight: 700; line-height: 1.2; }
+  .mp-grid small { font-size: 10.5px; color: var(--muted); }
+
+  /* ---- bus marker (DOM marker, rotated by heading) ---- */
+  .bm { position: relative; width: 44px; height: 44px; cursor: pointer; }
+
   .bm-dir { position: absolute; inset: 0; }
   .bm-dir::before {
     content: ""; position: absolute; top: 0; left: 50%; margin-left: -6px;
@@ -734,6 +784,10 @@
   .bm-body svg { width: 18px; height: 18px; }
   .bm.sel .bm-body { transform: scale(1.14); }
   .bm.sel::after { content: ""; position: absolute; inset: 2px; border-radius: 50%; border: 2px solid var(--c); animation: ring 1.6s ease-out infinite; }
+  .bm.offline .bm-body { background: var(--muted); opacity: 0.75; }
+  .bm.offline .bm-dir { display: none; }
+  .me-dot { width: 18px; height: 18px; border-radius: 50%; background: #3b82f6; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+  .bc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
   .buscards {
     position: absolute; z-index: 5; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -1029,7 +1083,7 @@
   <div class="rshare">
     <div class="rshare-in">
       <svg class="rs-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/></svg>
-      <div class="rs-txt"><b data-i18n="shareTitle">I'm On This Bus</b><small data-i18n="shareSub">Share your location</small></div>
+      <div class="rs-txt"><b data-i18n="shareTitle">I'm Inside This Bus</b><small data-i18n="shareSub">Share your location</small></div>
       <button type="button" class="tgl" id="rShare" role="switch" aria-checked="false" aria-label="Share my location"></button>
     </div>
   </div>
@@ -1176,13 +1230,27 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
     <h1 data-i18n="liveMap">Live Map</h1>
-    <span class="livepill"><i></i><span data-i18n="liveDemo">Live demo</span></span>
+    <span class="livepill" id="mapLivePill"><i></i><span id="mapLiveTxt" data-i18n="liveLbl">Live</span></span>
   </header>
   <div class="mapwrap">
     <div id="map"></div>
+    <div class="mpanel" id="mapPanel" hidden>
+      <div class="mp-top">
+        <b id="mpName"></b>
+        <span class="mp-badge off" id="mpBadge"><i></i><span id="mpBadgeTxt"></span></span>
+      </div>
+      <small class="mp-route" id="mpRoute"></small>
+      <div class="mp-grid">
+        <div><b id="mpSpeed">—</b><small data-i18n="kmh">km/h</small></div>
+        <div><b id="mpUpd">—</b><small data-i18n="lastUpd">Last update</small></div>
+        <div><b id="mpDev">—</b><small data-i18n="trackDev">Tracking</small></div>
+        <div><b id="mpAcc">—</b><small data-i18n="gpsAcc">GPS acc.</small></div>
+      </div>
+    </div>
     <button class="round-btn locate" id="locateBtn" type="button" aria-label="My location" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2" fill="#3b82f6" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     </button>
+    <div class="mnote" id="mapNote" hidden><span id="mapNoteTxt"></span></div>
     <div class="maploading" id="mapOverlay">
       <div class="spin" id="mapSpin"></div>
       <p id="mapMsg"></p>
@@ -1225,6 +1293,17 @@
       guestNotEnabled: "Guest accounts aren't enabled yet — turn on 'Anonymous' in Supabase → Authentication → Providers",
       authLoading: "Loading sign-in… try again in a moment", appleUser: "Apple User",
       liveDemo: "Live demo", mapLoading: "Loading map…",
+      liveLbl: "Live", updatingLbl: "Updating", offlineLbl: "Offline",
+      lastUpd: "Last update", trackDev: "Tracking", gpsAcc: "GPS acc.", devices: "devices",
+      secAgo: "{n}s ago", minAgo: "{n}m ago", noFix: "No location yet",
+      noLiveBus: "No bus is sharing its location right now. Ask a rider on board to turn on \u201cI\u2019m Inside This Bus\u201d.",
+      mapTokenMissing: "Mapbox token missing. Add MAPBOX_ACCESS_TOKEN to your .env (see README).",
+      offlineBus: "Location unavailable — no rider is sharing from this bus",
+      netLost: "You are offline — live updates paused", netBack: "Back online",
+      rtLost: "Realtime connection lost, retrying…",
+      needAuth: "Sign in to share your location for this bus",
+      permHelp: "Live bus tracking needs your location. Allow location access for this page and try again.",
+      lowAcc: "GPS accuracy is poor — waiting for a better fix",
       mapError: "Couldn't load the map. Check your internet connection.", retry: "Try again",
       kmh: "km/h", nextStop: "Next stop", atStop: "At stop", locFail: "Couldn't get your location",
       locTimeout: "Couldn't get a location fix. Check that location is allowed for this page, then try again.",
@@ -1300,7 +1379,7 @@
       lbEmpty: "No one has earned points yet. Be the first — share your location on a bus.",
       lbWait: "Connecting to the live ranking…",
       pts: "{n} pts", ord1: "1st", ord2: "2nd", ord3: "3rd",
-      shareTitle: "I'm On This Bus", shareSub: "Share your location to help other riders and earn points",
+      shareTitle: "I'm Inside This Bus", shareSub: "Share your location to help other riders and earn points",
       shareOn: "Sharing your location", shareOff: "Stopped sharing", shareBanner: "Sharing location on {bus}", stopShare: "Stop"
     },
     bn: {
@@ -1320,6 +1399,17 @@
       guestNotEnabled: "অতিথি অ্যাকাউন্ট এখনও চালু নয় — Supabase → Authentication → Providers-এ 'Anonymous' চালু করুন",
       authLoading: "সাইন ইন লোড হচ্ছে… একটু পরে আবার চেষ্টা করুন", appleUser: "অ্যাপল ব্যবহারকারী",
       liveDemo: "লাইভ ডেমো", mapLoading: "ম্যাপ লোড হচ্ছে…",
+      liveLbl: "লাইভ", updatingLbl: "আপডেট হচ্ছে", offlineLbl: "অফলাইন",
+      lastUpd: "শেষ আপডেট", trackDev: "ট্র্যাকিং", gpsAcc: "জিপিএস নির্ভুলতা", devices: "ডিভাইস",
+      secAgo: "{n} সেকেন্ড আগে", minAgo: "{n} মিনিট আগে", noFix: "এখনো লোকেশন নেই",
+      noLiveBus: "এখন কোনো বাস লোকেশন শেয়ার করছে না। বাসে থাকা কাউকে “আমি এই বাসে আছি” চালু করতে বলুন।",
+      mapTokenMissing: "Mapbox টোকেন নেই। .env ফাইলে MAPBOX_ACCESS_TOKEN যোগ করুন (README দেখুন)।",
+      offlineBus: "লোকেশন পাওয়া যাচ্ছে না — এই বাস থেকে কেউ শেয়ার করছে না",
+      netLost: "আপনি অফলাইন — লাইভ আপডেট বন্ধ আছে", netBack: "আবার অনলাইনে",
+      rtLost: "রিয়েলটাইম সংযোগ বিচ্ছিন্ন, আবার চেষ্টা চলছে…",
+      needAuth: "এই বাসে লোকেশন শেয়ার করতে সাইন ইন করুন",
+      permHelp: "লাইভ বাস ট্র্যাকিংয়ের জন্য লোকেশন দরকার। এই পেজে লোকেশন অনুমতি দিয়ে আবার চেষ্টা করুন।",
+      lowAcc: "জিপিএস নির্ভুলতা কম — ভালো সিগন্যালের অপেক্ষা",
       mapError: "ম্যাপ লোড করা যায়নি। ইন্টারনেট সংযোগ দেখুন।", retry: "আবার চেষ্টা করুন",
       kmh: "কিমি/ঘণ্টা", nextStop: "পরবর্তী স্টপ", atStop: "স্টপে", locFail: "আপনার অবস্থান পাওয়া যায়নি",
       locTimeout: "লোকেশন পাওয়া যায়নি। এই পেজের জন্য লোকেশন অনুমতি দেওয়া আছে কিনা দেখে আবার চেষ্টা করুন।",
@@ -1423,6 +1513,7 @@
   var SUPABASE_JS_ALT = "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js";
   var SB = null;              // Supabase client once the library loads
   var sbUser = null;          // signed-in Supabase user (null = local mode)
+  var sbSession = null;       // current Supabase session (token used for keepalive writes)
   var sbAppliedKey = null;    // guards repeat enter() calls (token refresh etc.)
   var sbLoadState = "loading";
   var sbLoadP = null;
@@ -1488,6 +1579,7 @@
   // Maps a Supabase session onto the app's session/profile model and
   // refreshes everything that depends on the signed-in user.
   function applySbSession(s) {
+    sbSession = s || null;
     sbUser = s && s.user ? s.user : null;
     if (!sbUser) return;
     var md = sbUser.user_metadata || {};
@@ -1539,6 +1631,18 @@
   var busesP = null;
   var DATA_FROM_DB = false;
 
+  // routes.route_geometry -> a GeoJSON Feature the map can draw as-is
+  function normGeo(g) {
+    if (!g) return null;
+    try {
+      var o = typeof g === "string" ? JSON.parse(g) : g;
+      if (o.type === "Feature" && o.geometry && o.geometry.type === "LineString") return o;
+      if (o.type === "LineString") return { type: "Feature", properties: {}, geometry: o };
+      if (o.type === "FeatureCollection" && o.features && o.features[0]) return o.features[0];
+    } catch (e) { console.warn("[routes] bad route_geometry", e); }
+    return null;
+  }
+
   function applyDbData(places, routes, rstops, buses, runs) {
     // places -> PLACES { id: { en, bn, ll:[lat,lng] } }
     var P = {};
@@ -1558,6 +1662,7 @@
           id: r.id, color: r.color || "#3b82f6", mins: r.mins || 45,
           kmh: r.kmh || 30, loop: r.loop !== false,
           name: { en: r.name_en, bn: r.name_bn },
+          geojson: normGeo(r.route_geometry),   // optional GeoJSON from the DB
           stops: (byRoute[r.id] || []).filter(Boolean)
         };
       }).filter(function (r) { return r.stops.length > 1; });
@@ -1727,7 +1832,7 @@
     if (!force && busesP) return busesP;
     busesP = Promise.all([
       SB.from("places").select("id, name_en, name_bn, lat, lng"),
-      SB.from("routes").select("id, name_en, name_bn, color, mins, kmh, loop, active, sort_order"),
+      SB.from("routes").select("id, name_en, name_bn, color, mins, kmh, loop, active, sort_order, route_geometry"),
       SB.from("route_stops").select("route_id, seq, place_id"),
       SB.from("buses").select("n, name_en, name_bn, active"),
       SB.from("timetable").select("bus_n, depart_at, route_id, who, active")
@@ -2072,25 +2177,51 @@
   });
 
   /* =====================================================
-     LIVE MAP  (Leaflet + free map tiles, no API key needed)
+     LIVE MAP  (Mapbox GL JS + Supabase Realtime — REAL GPS, no simulation)
      -----------------------------------------------------
-     The buses you see are SIMULATED: they drive back and forth along
-     the routes below, so students can see how the screen works.
-     Their trips (start time, speed, delay) come from the `buses` table in
-     Supabase, so editing that table changes the map too. For real GPS
-     tracking, have drivers' phones write positions to a Supabase table and
-     call moveBus(bus, lat, lng) from a realtime subscription.
+     Every bus marker on this screen is a real position, aggregated on the
+     database from the phones of the students riding that bus:
+
+       student phone GPS  ->  bus_gps_reports  (private, RLS owner-only)
+                          ->  SQL trigger: accuracy + staleness filter,
+                              outlier rejection, median position
+                          ->  bus_live_locations (ONE row per bus, public)
+                          ->  Supabase Realtime  ->  this screen
+                          ->  Mapbox marker, smoothly interpolated
+
+     The Mapbox token is read at runtime (env.js / meta tag / app_settings),
+     never hard-coded here. See README.md.
      ROUTES / PLACES (just below) hold the real PUST bus routes from the transport notice.
      ===================================================== */
-  var LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-  var LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-  var TILES = {
-    light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-  };
-  var TILE_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
-  var SIM_SPEEDUP = 12;   // demo only: buses move 12x faster than real life so the motion is easy to see
-  var STOP_DWELL = 4;     // seconds a bus waits at each stop
+  // Local copy first (npm install + node scripts/vendor-mapbox.js), CDN as fallback.
+  var MAPBOX_JS      = "vendor/mapbox-gl/mapbox-gl.js";
+  var MAPBOX_CSS     = "vendor/mapbox-gl/mapbox-gl.css";
+  var MAPBOX_JS_CDN  = "https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js";
+  var MAPBOX_CSS_CDN = "https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css";
+  var MAP_STYLE = { light: "mapbox://styles/mapbox/streets-v12", dark: "mapbox://styles/mapbox/dark-v11" };
+
+  /* ----- Mapbox PUBLIC access token -------------------------------------
+     NEVER hard-coded. Resolved at runtime, in this order:
+       1. window.ENV.MAPBOX_ACCESS_TOKEN   (env.js, generated from .env by
+          `node scripts/generate-env.js`; env.js is git-ignored)
+       2. <meta name="mapbox-token" content="...">  (server-side injection)
+       3. app_settings.mapbox_access_token in Supabase (CFG)
+     If none is found the map shows a clear "token missing" error. */
+  function mapboxToken() {
+    var meta = document.querySelector('meta[name="mapbox-token"]');
+    var t = (window.ENV && window.ENV.MAPBOX_ACCESS_TOKEN) ||
+            (meta && meta.getAttribute("content")) ||
+            cfg("mapbox_access_token", "");
+    t = String(t || "").trim();
+    return /^pk\./.test(t) ? t : "";          // only public pk.* tokens
+  }
+
+  /* ----- live-tracking tuning (shared with the GPS uploader) ----- */
+  var LIVE_FRESH_MS   = 60000;    // newer than this  -> 🟢 Live
+  var LIVE_STALE_MS   = 180000;   // older than this  -> nobody is sharing any more:
+                                  //   the bus is REMOVED from the map entirely.
+                                  //   (between the two = 🟡 Updating)
+  var MARKER_ANIM_MS  = 1200;     // smooth interpolation window between two fixes
 
   /* ----- PUST Transport Pool timetable (notice dated 07-04-2026) -----
      PLACES  = every stop name that appears on the notice, in English + Bangla.
@@ -2160,8 +2291,10 @@
     '<circle cx="8.8" cy="14.5" r="1.1" fill="var(--c)"/><circle cx="15.2" cy="14.5" r="1.1" fill="var(--c)"/>' +
     '<rect x="6.6" y="17.2" width="3" height="3.3" rx="1" fill="#fff"/><rect x="14.4" y="17.2" width="3" height="3.3" rx="1" fill="#fff"/></svg>';
 
-  var M = { map: null, tile: null, tileDark: null, ready: false, buses: [], sel: null, follow: false,
-            flying: false, raf: 0, last: 0, lastUi: 0, open: false, me: null, meAcc: null };
+  var M = { map: null, token: "", styleDark: null, drawn: false, ready: false,
+            buses: [], byN: {}, sel: null, follow: false, flying: false,
+            raf: 0, last: 0, lastUi: 0, open: false, me: null,
+            rt: null, rtOk: false };
 
   function num(n) { return lang === "bn" ? String(n).replace(/\d/g, function (d) { return "০১২৩৪৫৬৭৮৯".charAt(d); }) : String(n); }
   function stopName(r, i) { return r.stops[i][lang]; }
@@ -2271,139 +2404,292 @@
     return routesP;
   }
 
-  function ensureLeaflet() {
-    if (window.L && window.L.map) return Promise.resolve();
-    var cssReady = Promise.resolve();
-    if (!document.getElementById("leaflet-css")) {
-      cssReady = new Promise(function (resolve) {
-        var l = document.createElement("link");
-        l.id = "leaflet-css"; l.rel = "stylesheet"; l.href = LEAFLET_CSS;
-        l.onload = resolve; l.onerror = resolve;
-        document.head.appendChild(l);
-      });
-    }
-    return Promise.all([cssReady, loadScript(LEAFLET_JS)]);
+  /* =====================================================
+     MAPBOX GL JS LOADER
+     The token never lives in this file — see mapboxToken() above.
+     ===================================================== */
+  function ensureMapbox() {
+    if (window.mapboxgl && window.mapboxgl.Map) return Promise.resolve();
+    var cssReady = new Promise(function (resolve) {
+      if (document.getElementById("mapbox-css")) return resolve();
+      var l = document.createElement("link");
+      l.id = "mapbox-css"; l.rel = "stylesheet"; l.href = MAPBOX_CSS;
+      l.onload = resolve;
+      l.onerror = function () { l.href = MAPBOX_CSS_CDN; l.onerror = resolve; };
+      document.head.appendChild(l);
+      setTimeout(resolve, 4000);
+    });
+    var jsReady = loadScript(MAPBOX_JS).catch(function () {
+      console.warn("[map] local mapbox-gl not found, falling back to the CDN");
+      return loadScript(MAPBOX_JS_CDN);
+    });
+    return Promise.all([cssReady, jsReady]);
   }
 
   /* ----- map setup ----- */
   function initMap() {
-    var map = L.map("map", { zoomControl: false, attributionControl: false }).setView([24.011, 89.259], 13);
-    L.control.zoom({ position: "topright" }).addTo(map);
-    L.control.attribution({ position: "topleft", prefix: false }).addTo(map);
+    mapboxgl.accessToken = M.token;
+    var map = new mapboxgl.Map({
+      container: "map",
+      style: isDark() ? MAP_STYLE.dark : MAP_STYLE.light,
+      center: [89.259, 24.011],          // Mapbox is [lng, lat]
+      zoom: 12,
+      attributionControl: false,
+      cooperativeGestures: false
+    });
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
     map.on("dragstart", function () { if (M.follow) { M.follow = false; markSelected(); } });
+    map.on("error", function (e) { console.error("[map] mapbox error", e && e.error); });
     M.map = map;
+    M.styleDark = isDark();
     $("locateBtn").hidden = false;
+    return new Promise(function (resolve) { map.on("load", resolve); });
   }
 
+  // theme switch -> swap the basemap style and redraw everything we own
   function applyTiles() {
-    var dark = isDark();
-    if (M.tile && M.tileDark === dark) return;
-    if (M.tile) M.map.removeLayer(M.tile);
-    M.tile = L.tileLayer(dark ? TILES.dark : TILES.light, { subdomains: "abcd", maxZoom: 19, attribution: TILE_ATTR }).addTo(M.map);
-    M.tileDark = dark;
+    if (!M.map || M.styleDark === isDark()) return;
+    M.styleDark = isDark();
+    M.map.once("styledata", function () { M.drawn = false; drawRoutes(); });
+    M.map.setStyle(M.styleDark ? MAP_STYLE.dark : MAP_STYLE.light);
   }
 
-  function drawRoute(r) {
-    L.polyline(r.pts, { color: "#fff", weight: 9, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(M.map);
-    L.polyline(r.pts, { color: r.color, weight: 5, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(M.map);
-    r.stops.forEach(function (st, i) {
-      L.circleMarker(st.ll, { radius: 6, color: r.color, weight: 3, fillColor: "#fff", fillOpacity: 1 })
-        .addTo(M.map)
-        .bindPopup(function () { return stopName(r, i); });
-    });
+  /* ----- route polylines (GeoJSON from the DB if present, else road shape) ----- */
+  function routeFeature(r) {
+    if (r.geojson) return r.geojson;                    // routes.route_geometry
+    return { type: "Feature", properties: { color: r.color, id: r.id },
+             geometry: { type: "LineString", coordinates: r.pts.map(function (p) { return [p[1], p[0]]; }) } };
   }
-
-  function createBuses() {
-    var byId = {};
-    ROUTES.forEach(function (r) { byId[r.id] = r; });
-    M.buses = fleetFromTrips().map(function (f, idx) {
-      var r = byId[f.route];
-      var b = { id: f.id, n: f.n, r: r, s: f.start * r.total, dir: f.dir, kmh: f.kmh, v: f.kmh,
-                dwell: 0, atStop: -1, phase: idx * 2.1 };
-      var pos = pointAt(r, b.s);
-      b.h = f.dir > 0 ? pos.brg : (pos.brg + 180) % 360;
-      var icon = L.divIcon({
-        className: "bm-wrap",
-        html: '<div class="bm" style="--c:' + r.color + '"><div class="bm-dir"></div><div class="bm-body">' + BUS_GLYPH + '</div></div>',
-        iconSize: [44, 44], iconAnchor: [22, 22]
+  function drawRoutes() {
+    if (!M.map || !M.map.isStyleLoaded() || M.drawn) return;
+    var used = {};
+    TRIPS.forEach(function (x) { used[x.route] = true; });
+    var lines = { type: "FeatureCollection", features: [] };
+    var ends = { type: "FeatureCollection", features: [] };
+    var stops = { type: "FeatureCollection", features: [] };
+    ROUTES.forEach(function (r) {
+      if (!used[r.id] || !r.pts) return;
+      var f = routeFeature(r);
+      f.properties = f.properties || {};
+      f.properties.color = r.color;
+      lines.features.push(f);
+      r.stops.forEach(function (st, i) {
+        var last = i === r.stops.length - 1;
+        var pt = { type: "Feature", properties: { color: r.color, name: st[lang] || st.en },
+                   geometry: { type: "Point", coordinates: [st.ll[1], st.ll[0]] } };
+        (i === 0 || last ? ends : stops).features.push(pt);
       });
-      b.marker = L.marker(pos.ll, { icon: icon, keyboard: false, zIndexOffset: 1000 }).addTo(M.map);
-      var root = b.marker.getElement();
-      b.bmEl = root.querySelector(".bm");
-      b.dirEl = root.querySelector(".bm-dir");
-      b.dirEl.style.transform = "rotate(" + b.h + "deg)";
-      b.marker.on("click", function () { selectBus(b); });
-      return b;
     });
+    setSrc("routes-src", lines);
+    setSrc("stops-src", stops);
+    setSrc("ends-src", ends);
+    addLayerOnce("routes-casing", { type: "line", source: "routes-src",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.9 } });
+    addLayerOnce("routes-line", { type: "line", source: "routes-src",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": ["get", "color"], "line-width": 4.5 } });
+    addLayerOnce("stops-dot", { type: "circle", source: "stops-src",
+      paint: { "circle-radius": 5, "circle-color": "#ffffff",
+               "circle-stroke-color": ["get", "color"], "circle-stroke-width": 3 } });
+    addLayerOnce("ends-dot", { type: "circle", source: "ends-src",
+      paint: { "circle-radius": 7.5, "circle-color": ["get", "color"],
+               "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+    ["stops-dot", "ends-dot"].forEach(function (id) {
+      M.map.on("click", id, function (e) {
+        new mapboxgl.Popup({ closeButton: false, offset: 12 })
+          .setLngLat(e.features[0].geometry.coordinates)
+          .setText(e.features[0].properties.name || "")
+          .addTo(M.map);
+      });
+      M.map.on("mouseenter", id, function () { M.map.getCanvas().style.cursor = "pointer"; });
+      M.map.on("mouseleave", id, function () { M.map.getCanvas().style.cursor = ""; });
+    });
+    M.drawn = true;
+  }
+  function setSrc(id, data) {
+    var src = M.map.getSource(id);
+    if (src) src.setData(data);
+    else M.map.addSource(id, { type: "geojson", data: data });
+  }
+  function addLayerOnce(id, spec) {
+    if (M.map.getLayer(id)) return;
+    spec.id = id;
+    M.map.addLayer(spec);
   }
 
-  // fleet changed on the server -> rebuild the buses on the open map, live
+  /* =====================================================
+     LIVE BUSES — real positions from Supabase
+     -----------------------------------------------------
+     Source of truth: public.bus_live_locations, ONE row per bus, written by
+     the SQL aggregation trigger from the GPS of every student riding it.
+     This client never sees an individual student's coordinates.
+     Flow:  phone GPS -> bus_gps_reports -> trigger (median + outlier filter)
+            -> bus_live_locations -> Realtime -> here -> animated marker.
+     ===================================================== */
+  function makeBusMarker(b) {
+    var el = document.createElement("div");
+    el.className = "bm";
+    el.style.setProperty("--c", b.color);
+    el.innerHTML = '<div class="bm-dir"></div><div class="bm-body">' + BUS_GLYPH + "</div>";
+    el.addEventListener("click", function (e) { e.stopPropagation(); selectBus(b); });
+    b.bmEl = el;
+    b.dirEl = el.querySelector(".bm-dir");
+    b.marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+      .setLngLat([b.lng, b.lat]).addTo(M.map);
+  }
+
+  // Ingest one aggregated row -> create/refresh a bus on the map.
+  // Never teleports: the marker animates from where it is to the new fix.
+  function applyLiveRow(row) {
+    if (!row || row.latitude == null || row.longitude == null) return;
+    var n = row.bus_n;
+    var b = M.byN[n];
+    var routeId = (TRIPS.filter(function (x) { return x.n === n; })[0] || {}).route;
+    var r = ROUTES.filter(function (x) { return x.id === routeId; })[0] || null;
+    var upd = new Date(row.updated_at || row.recorded_at || Date.now()).getTime();
+    // stopped sharing (last rider turned it off, or the row went stale)?
+    if (!isSharing(row, upd)) {
+      if (b) {
+        console.info("[live] bus " + n + " stopped sharing, removing from the map");
+        removeBus(b);
+        buildCards();
+        markSelected();
+        updateEmptyState();
+      }
+      return;                       // never ADD a bus that is not sharing
+    }
+    if (!b) {
+      b = { n: n, r: r, color: (r && r.color) || "#3b82f6",
+            lat: row.latitude, lng: row.longitude,
+            fromLat: row.latitude, fromLng: row.longitude,
+            toLat: row.latitude, toLng: row.longitude,
+            animStart: 0, h: row.heading || 0, targetH: row.heading || 0,
+            speed: row.speed || 0, acc: row.accuracy, dev: row.device_count || 0,
+            upd: upd, rec: new Date(row.recorded_at || upd).getTime() };
+      M.byN[n] = b;
+      M.buses.push(b);
+      if (M.map) makeBusMarker(b);
+      buildCards();
+    } else {
+      if (r) { b.r = r; b.color = r.color; if (b.bmEl) b.bmEl.style.setProperty("--c", r.color); }
+      // start a smooth interpolation from the CURRENT drawn position
+      b.fromLat = b.lat; b.fromLng = b.lng;
+      b.toLat = row.latitude; b.toLng = row.longitude;
+      b.animStart = performance.now();
+      // heading: use the reported one, else derive it from the movement
+      var moved = hav([b.fromLat, b.fromLng], [b.toLat, b.toLng]);
+      b.targetH = (row.heading != null) ? row.heading
+                : (moved > 8 ? bearing([b.fromLat, b.fromLng], [b.toLat, b.toLng]) : b.targetH);
+      b.speed = row.speed || 0;
+      b.acc = row.accuracy;
+      b.dev = row.device_count || 0;
+      b.upd = upd;
+      b.rec = new Date(row.recorded_at || upd).getTime();
+    }
+    updateCards();
+    if (M.sel === b) renderPanel();
+  }
+
+  // A bus belongs on the map only while students inside it are actually
+  // sharing. No contributors (device_count 0) or nothing received for
+  // LIVE_STALE_MS -> the marker, the card and the bus itself are removed.
+  function isSharing(row, upd) {
+    if (row && row.device_count === 0) return false;
+    return (Date.now() - upd) < LIVE_STALE_MS;
+  }
+  function removeBus(b) {
+    if (!b) return;
+    if (b.marker) { try { b.marker.remove(); } catch (e) {} }
+    delete M.byN[b.n];
+    M.buses = M.buses.filter(function (x) { return x !== b; });
+    if (M.sel === b) { M.sel = null; M.follow = false; }
+    if (b.el && b.el.card && b.el.card.parentNode) b.el.card.parentNode.removeChild(b.el.card);
+  }
+  // called every second by the animation loop: retire buses that went quiet
+  function pruneStaleBuses() {
+    var gone = M.buses.filter(function (b) { return !isSharing(null, b.upd); });
+    if (!gone.length) return;
+    gone.forEach(function (b) {
+      console.info("[live] bus " + b.n + " stopped sharing, removing from the map");
+      removeBus(b);
+    });
+    buildCards();
+    markSelected();
+    updateEmptyState();
+  }
+
+  function busStatus(b) {
+    var age = Date.now() - b.upd;
+    if (age < LIVE_FRESH_MS) return "live";
+    if (age < LIVE_STALE_MS) return "upd";
+    return "off";
+  }
+
+  // first load / manual refresh: read the current aggregated positions
+  function fetchLiveBuses() {
+    if (!SB) return Promise.resolve(false);
+    // only rows still being fed by a rider's phone; the rest are not shown
+    var since = new Date(Date.now() - LIVE_STALE_MS).toISOString();
+    return SB.from("bus_live_locations")
+      .select("bus_n, latitude, longitude, speed, heading, accuracy, device_count, recorded_at, updated_at")
+      .gt("updated_at", since)
+      .gt("device_count", 0)
+      .then(function (res) {
+        if (res.error) { console.error("[live] fetch failed", res.error); return false; }
+        (res.data || []).forEach(applyLiveRow);
+        pruneStaleBuses();
+        updateEmptyState();
+        return true;
+      }).catch(function (e) { console.error("[live] fetch threw", e); return false; });
+  }
+
+  /* ----- Supabase Realtime: no polling, marker moves without a reload ----- */
+  function subscribeLive() {
+    if (!SB || M.rt) return;
+    M.rt = SB.channel("bus-live")
+      .on("postgres_changes",
+          { event: "*", schema: "public", table: "bus_live_locations" },
+          function (p) { if (p.new) applyLiveRow(p.new); updateEmptyState(); })
+      .subscribe(function (status) {
+        M.rtOk = status === "SUBSCRIBED";
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[live] realtime", status);
+          showToast(I18N[lang].rtLost);
+          setTimeout(function () { if (M.open) { unsubscribeLive(); subscribeLive(); fetchLiveBuses(); } }, 4000);
+        }
+        renderLivePill();
+      });
+  }
+  function unsubscribeLive() {
+    if (M.rt && SB) { try { SB.removeChannel(M.rt); } catch (e) {} }
+    M.rt = null; M.rtOk = false;
+  }
+
+  // fleet/timetable changed on the server -> refresh route colours + cards
   function rebuildMapBuses() {
     if (!M.ready || !M.open) return;
-    M.buses.forEach(function (b) { if (b.marker) M.map.removeLayer(b.marker); });
-    M.sel = null;
-    M.follow = false;
-    createBuses();
+    M.drawn = false;
+    drawRoutes();
     buildCards();
   }
 
-  /* ----- simulation (swap this for real GPS data) ----- */
-  function stepBus(b, dt, t) {
-    var r = b.r;
-    if (b.dwell > 0) {
-      b.dwell -= dt; b.v = 0;
-      if (b.dwell <= 0) b.atStop = -1;
-    } else {
-      b.v = b.kmh * (1 + 0.12 * Math.sin(t / 3 + b.phase));
-      var s0 = b.s, s1 = s0 + b.dir * (b.v / 3.6) * SIM_SPEEDUP * dt, hit = -1;
-      for (var k = 0; k < r.stopD.length; k++) {
-        var d = r.stopD[k];
-        var crossed = b.dir > 0 ? (d > s0 + 0.5 && d <= s1) : (d < s0 - 0.5 && d >= s1);
-        if (crossed && (hit < 0 || (b.dir > 0 ? d < r.stopD[hit] : d > r.stopD[hit]))) hit = k;
-      }
-      if (hit >= 0) {
-        b.s = r.stopD[hit]; b.dwell = STOP_DWELL; b.atStop = hit; b.v = 0;
-        if (r.loop && hit === r.stopD.length - 1) { b.s = 0; b.atStop = 0; b.dir = 1; }   // back at Campus: start the next lap
-        else if (hit === 0) b.dir = 1; else if (hit === r.stopD.length - 1) b.dir = -1;
-      } else {
-        b.s = Math.max(0, Math.min(r.total, s1));
-      }
-    }
-    var pos = pointAt(r, b.s);
-    moveBus(b, pos.ll, b.dir > 0 ? pos.brg : (pos.brg + 180) % 360, dt);
-  }
-
-  // Put a bus on the map. A real GPS feed would call this too.
-  function moveBus(b, ll, targetHeading, dt) {
-    b.marker.setLatLng(ll);
-    if (b.v > 0) {
-      var diff = ((targetHeading - b.h + 540) % 360) - 180;
-      b.h = (b.h + diff * Math.min(1, dt * 6) + 360) % 360;
-      b.dirEl.style.transform = "rotate(" + b.h.toFixed(1) + "deg)";
-    }
-  }
-
-  function nextStopIdx(b) {
-    var r = b.r, i;
-    if (b.dir > 0) { for (i = 0; i < r.stopD.length; i++) if (r.stopD[i] > b.s + 0.5) return i; return r.stopD.length - 1; }
-    for (i = r.stopD.length - 1; i >= 0; i--) if (r.stopD[i] < b.s - 0.5) return i;
-    return 0;
-  }
-
-  /* ----- bus cards ----- */
+  /* ----- bus cards (bottom carousel) ----- */
   function buildCards() {
     var t = I18N[lang], wrap = $("busCards");
+    if (!wrap) return;
     wrap.innerHTML = "";
     M.buses.forEach(function (b) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "bcard";
-      btn.style.setProperty("--c", b.r.color);
+      btn.style.setProperty("--c", b.color);
       btn.innerHTML = '<span class="bc-ico">' + BUS_GLYPH + '</span>' +
         '<span class="bc-main"><b class="bc-name"></b><small class="bc-route"></small><small class="bc-status"></small></span>' +
         '<span class="bc-speed"><b></b><small></small></span>';
       btn.querySelector(".bc-name").textContent = busName(b.n);
-      btn.querySelector(".bc-route").textContent = routeName(b.r);
+      btn.querySelector(".bc-route").textContent = b.r ? routeName(b.r) : "";
       btn.querySelector(".bc-speed small").textContent = t.kmh;
       btn.addEventListener("click", function () { selectBus(b); });
       wrap.appendChild(btn);
@@ -2413,15 +2699,73 @@
     updateCards();
   }
 
+  function liveAgo(ms) {
+    var t = I18N[lang], sec = Math.max(0, Math.round(ms / 1000));
+    if (sec < 60) return t.secAgo.replace("{n}", num(sec));
+    return t.minAgo.replace("{n}", num(Math.round(sec / 60)));
+  }
+
   function updateCards() {
     var t = I18N[lang];
     M.buses.forEach(function (b) {
       if (!b.el) return;
-      b.el.status.textContent = b.dwell > 0 && b.atStop >= 0
-        ? t.atStop + " · " + stopName(b.r, b.atStop)
-        : t.nextStop + ": " + stopName(b.r, nextStopIdx(b));
-      b.el.speed.textContent = num(Math.round(b.v));
+      var st = busStatus(b);
+      b.el.status.textContent = st === "off"
+        ? t.offlineLbl + " · " + liveAgo(Date.now() - b.upd)
+        : (st === "live" ? t.liveLbl : t.updatingLbl) + " · " + liveAgo(Date.now() - b.upd);
+      b.el.speed.textContent = st === "off" ? "—" : num(Math.round(b.speed || 0));
+      if (b.bmEl) b.bmEl.classList.toggle("offline", st === "off");
     });
+    renderPanel();
+    renderLivePill();
+  }
+
+  function renderLivePill() {
+    var t = I18N[lang], pill = $("mapLivePill");
+    if (!pill) return;
+    var anyLive = M.buses.some(function (b) { return busStatus(b) === "live"; });
+    var anyUpd  = M.buses.some(function (b) { return busStatus(b) === "upd"; });
+    var state = !navigator.onLine ? "off" : anyLive ? "live" : anyUpd ? "upd" : "off";
+    $("mapLiveTxt").textContent = !navigator.onLine ? t.netLost
+      : state === "live" ? t.liveLbl : state === "upd" ? t.updatingLbl : t.offlineLbl;
+    pill.classList.remove("is-live", "is-upd", "is-off");
+    pill.classList.add("is-" + state);
+  }
+
+  function renderPanel() {
+    var t = I18N[lang], p = $("mapPanel");
+    if (!p) return;
+    var b = M.sel;
+    if (!b) {
+      p.hidden = true;
+      document.querySelector(".mapwrap").classList.remove("has-panel");
+      updateEmptyState();
+      return;
+    }
+    p.hidden = false;
+    document.querySelector(".mapwrap").classList.add("has-panel");
+    if ($("mapNote")) $("mapNote").hidden = true;
+    var st = busStatus(b);
+    $("mpName").textContent = busName(b.n);
+    $("mpRoute").textContent = b.r ? routeName(b.r) : "";
+    var badge = $("mpBadge");
+    badge.className = "mp-badge " + st;
+    $("mpBadgeTxt").textContent = st === "live" ? t.liveLbl : st === "upd" ? t.updatingLbl : t.offlineLbl;
+    $("mpSpeed").textContent = st === "off" ? "—" : num(Math.round(b.speed || 0));
+    $("mpUpd").textContent = liveAgo(Date.now() - b.upd);
+    $("mpDev").textContent = num(b.dev || 0);
+    $("mpAcc").textContent = b.acc == null ? "—" : num(Math.round(b.acc)) + " m";
+  }
+
+  // "nobody is sharing" is NOT an error: keep the map usable and just explain,
+  // in a small banner that hides itself as soon as a bus appears.
+  function updateEmptyState() {
+    if (!M.ready) return;
+    setOverlay(null);
+    var empty = !M.buses.length, note = $("mapNote");
+    if (!note) return;
+    note.hidden = !empty || !!M.sel;
+    if (empty) $("mapNoteTxt").textContent = I18N[lang].noLiveBus;
   }
 
   function markSelected() {
@@ -2430,6 +2774,7 @@
       if (b.el) { b.el.card.classList.toggle("sel", on); b.el.card.setAttribute("aria-pressed", on ? "true" : "false"); }
       if (b.bmEl) b.bmEl.classList.toggle("sel", on);
     });
+    renderPanel();
   }
 
   function selectBus(b) {
@@ -2439,19 +2784,38 @@
     M.flying = true;
     M.map.once("moveend", function () { M.flying = false; });
     setTimeout(function () { M.flying = false; }, 1400);
-    M.map.flyTo(b.marker.getLatLng(), Math.max(M.map.getZoom(), 15), { duration: 0.8 });
+    M.map.flyTo({ center: [b.lng, b.lat], zoom: Math.max(M.map.getZoom(), 15), duration: 800 });
     markSelected();
     if (b.el && b.el.card.scrollIntoView) b.el.card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }
 
-  /* ----- animation loop ----- */
+  /* ----- animation loop: smooth interpolation, never a hard jump -----
+     Each new fix sets from -> to; over MARKER_ANIM_MS we ease between them,
+     so the bus glides. The heading eases too (shortest way round the circle),
+     so the icon rotates instead of flipping. Zoom/pan don't affect it: the
+     marker is anchored to a lng/lat, Mapbox keeps it in place. */
+  function easeOut(x) { return 1 - Math.pow(1 - x, 3); }
   function tick(ts) {
     if (!M.open) { M.raf = 0; return; }
     var dt = Math.min(0.25, (ts - M.last) / 1000);
     M.last = ts;
-    M.buses.forEach(function (b) { stepBus(b, dt, ts / 1000); });
-    if (M.follow && M.sel && !M.flying) M.map.panTo(M.sel.marker.getLatLng(), { animate: false });
-    if (ts - M.lastUi > 500) { M.lastUi = ts; updateCards(); }
+    M.buses.forEach(function (b) {
+      if (!b.marker) return;
+      if (b.animStart) {
+        var k = Math.min(1, (ts - b.animStart) / MARKER_ANIM_MS), e = easeOut(k);
+        b.lat = b.fromLat + (b.toLat - b.fromLat) * e;
+        b.lng = b.fromLng + (b.toLng - b.fromLng) * e;
+        b.marker.setLngLat([b.lng, b.lat]);
+        if (k >= 1) b.animStart = 0;
+      }
+      var diff = ((b.targetH - b.h + 540) % 360) - 180;
+      if (Math.abs(diff) > 0.4) {
+        b.h = (b.h + diff * Math.min(1, dt * 5) + 360) % 360;
+        b.dirEl.style.transform = "rotate(" + b.h.toFixed(1) + "deg)";
+      }
+    });
+    if (M.follow && M.sel && !M.flying) M.map.setCenter([M.sel.lng, M.sel.lat]);
+    if (ts - M.lastUi > 1000) { M.lastUi = ts; pruneStaleBuses(); updateCards(); }
     M.raf = requestAnimationFrame(tick);
   }
   function startLoop() {
@@ -2461,13 +2825,16 @@
   }
 
   /* ----- open / close ----- */
-  function setOverlay(state) {
+  function setOverlay(state, msg) {
     var t = I18N[lang], ov = $("mapOverlay");
     ov.hidden = !state;
     if (!state) return;
     $("mapSpin").hidden = state !== "loading";
-    $("mapRetry").hidden = state !== "error";
-    $("mapMsg").textContent = state === "loading" ? t.mapLoading : t.mapError;
+    $("mapRetry").hidden = state === "loading";
+    $("mapMsg").textContent = msg ? msg
+      : state === "loading" ? t.mapLoading
+      : state === "token" ? t.mapTokenMissing
+      : t.mapError;
   }
 
   function openMap(preN) {
@@ -2475,34 +2842,51 @@
     lockScroll();
     M.open = true;
     setOverlay("loading");
-    ensureLeaflet().then(function () {
-      if (!M.map) initMap();
-      M.map.invalidateSize();
+    M.token = mapboxToken();
+    if (!M.token) {                                  // no token -> explain, don't crash
+      console.error("[map] Mapbox access token missing. Set MAPBOX_ACCESS_TOKEN in .env (see README.md).");
+      setOverlay("token");
+      return;
+    }
+    ensureMapbox().then(function () {
+      var ready = M.map ? Promise.resolve() : initMap();
+      return ready;
+    }).then(function () {
+      M.map.resize();
       applyTiles();
       if (M.ready) return;
       return loadRoutes().then(function () {
-        var used = {};
-        TRIPS.forEach(function (x) { used[x.route] = true; });
-        ROUTES.forEach(function (r) { if (used[r.id]) drawRoute(r); });
-        createBuses();
+        drawRoutes();
         M.ready = true;
-        M.map.fitBounds(L.latLngBounds(ROUTES[0].pts), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 150] });
+        if (ROUTES[0] && ROUTES[0].pts) {
+          var bb = new mapboxgl.LngLatBounds();
+          ROUTES[0].pts.forEach(function (p) { bb.extend([p[1], p[0]]); });
+          M.map.fitBounds(bb, { padding: { top: 110, left: 24, right: 24, bottom: 150 }, duration: 0 });
+        }
       });
     }).then(function () {
       if (!M.ready) return;
       buildCards();
-      setOverlay(null);
+      subscribeLive();
+      return fetchLiveBuses();
+    }).then(function () {
+      if (!M.ready) return;
+      updateEmptyState();
       if (M.open) startLoop();
       if (preN) {
-        var pb = M.buses.filter(function (x) { return x.n === preN; })[0];
+        var pb = M.byN[preN];
         if (pb) selectBus(pb);
       }
-    }).catch(function () { setOverlay("error"); });
+    }).catch(function (e) {
+      console.error("[map] open failed", e);
+      setOverlay("error");
+    });
   }
 
   function closeMap() {
     M.open = false;
     if (M.raf) { cancelAnimationFrame(M.raf); M.raf = 0; }
+    unsubscribeLive();
     M.sel = null;
     M.follow = false;
     markSelected();
@@ -2512,19 +2896,32 @@
 
   $("mapBack").addEventListener("click", closeMap);
   $("mapRetry").addEventListener("click", function () { openMap(); });
+  window.addEventListener("online", function () { if (M.open) { showToast(I18N[lang].netBack); fetchLiveBuses(); } renderLivePill(); });
+  window.addEventListener("offline", function () { if (M.open) showToast(I18N[lang].netLost); renderLivePill(); });
+
   $("locateBtn").addEventListener("click", function () {
+    var t = I18N[lang];
     if (!M.map) return;
-    if (!navigator.geolocation) { showToast(I18N[lang].locFail); return; }
+    if (!navigator.geolocation) { showToast(t.locFail); return; }
     navigator.geolocation.getCurrentPosition(function (pos) {
-      var ll = [pos.coords.latitude, pos.coords.longitude];
-      if (M.me) M.map.removeLayer(M.me);
-      if (M.meAcc) M.map.removeLayer(M.meAcc);
-      M.meAcc = L.circle(ll, { radius: pos.coords.accuracy, weight: 0, fillColor: "#3b82f6", fillOpacity: 0.12, interactive: false }).addTo(M.map);
-      M.me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#3b82f6", fillOpacity: 1, interactive: false }).addTo(M.map);
+      var ll = [pos.coords.longitude, pos.coords.latitude];
+      setSrc("me-acc-src", { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: ll } });
+      addLayerOnce("me-acc", { type: "circle", source: "me-acc-src",
+        paint: { "circle-color": "#3b82f6", "circle-opacity": 0.14,
+                 "circle-radius": ["interpolate", ["exponential", 2], ["zoom"],
+                                   10, 2, 20, Math.max(6, (pos.coords.accuracy || 20) / 1.2)] } });
+      if (!M.me) {
+        var d = document.createElement("div");
+        d.className = "me-dot";
+        M.me = new mapboxgl.Marker({ element: d }).setLngLat(ll).addTo(M.map);
+      } else M.me.setLngLat(ll);
       M.follow = false;
       markSelected();
-      M.map.flyTo(ll, Math.max(M.map.getZoom(), 15));
-    }, function () { showToast(I18N[lang].locFail); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+      M.map.flyTo({ center: ll, zoom: Math.max(M.map.getZoom(), 15) });
+    }, function (err) {
+      console.warn("[geo] locate failed", err && err.code, err && err.message);
+      showToast(err && err.code === 1 ? t.permHelp : t.locFail);
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   });
 
   /* =====================================================
@@ -3787,11 +4184,130 @@
   function updateShareUi() {
     $("rShare").setAttribute("aria-checked", SH.on && SH.bus === R.n ? "true" : "false");
   }
-  function stopShare(silent) {
+
+  /* ----- GPS TRACKING SERVICE (student side) --------------------------
+     "I'm Inside This Bus" -> this uploader. It writes to bus_gps_reports,
+     which RLS makes owner-only: nobody can read another student's raw GPS.
+     The database trigger turns every rider's fix into ONE public bus
+     position (bus_live_locations) that the map reads.
+
+     Upload strategy (battery + database friendly, see section 7 of the spec):
+       * at most one write every GEO_MIN_MS (5 s)
+       * ...unless the bus moved less than GEO_MIN_MOVE (25 m) and the last
+         write is younger than GEO_IDLE_MS (20 s) — a parked bus barely writes
+       * fixes worse than GEO_MAX_ACC (120 m) are dropped (they'd only add noise)
+       * fixes older than GEO_MAX_AGE (60 s) are dropped as stale
+       * a heartbeat every 45 s keeps the rider counted as active while parked
+     Requires a signed-in user (Supabase Auth) — RLS is keyed on auth.uid(). */
+  var GEO_MIN_MS    = 5000;     // hard floor between writes
+  var GEO_IDLE_MS   = 20000;    // if barely moving, write at most this often
+  var GEO_MIN_MOVE  = 25;       // metres of movement that forces a write
+  var GEO_MAX_ACC   = 120;      // metres: worse fixes are ignored
+  var GEO_MAX_AGE   = 60000;    // ms: older fixes are stale
+  var GEO_HEARTBEAT = 45000;    // keep-alive write while stationary
+
+  var GEO = { lastPush: 0, lastLat: 0, lastLng: 0, session: null, warnedAcc: 0 };
+
+  function geoSupported() { return !!(navigator.geolocation); }
+
+  // open a tracking session + set the student's active bus assignment
+  function beginSession(n) {
+    if (!remoteOK()) return Promise.resolve(null);
+    return SB.from("bus_tracking_sessions")
+      .insert({ user_id: sbUser.id, bus_n: n, status: "active" })
+      .select("id").single()
+      .then(function (res) {
+        if (res.error) { console.error("[gps] session insert failed", res.error); return null; }
+        GEO.session = res.data.id;
+        return SB.from("student_bus_assignments").upsert({
+          user_id: sbUser.id, bus_n: n, tracking_enabled: true,
+          session_id: GEO.session, updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" }).then(function () { return GEO.session; });
+      }).catch(function (e) { console.error("[gps] session error", e); return null; });
+  }
+
+  function endSession() {
+    if (!remoteOK()) { GEO.session = null; return; }
+    var sid = GEO.session;
+    GEO.session = null;
+    SB.from("student_bus_assignments").upsert({
+      user_id: sbUser.id, bus_n: null, tracking_enabled: false,
+      session_id: null, updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" }).then(function () {}).catch(function () {});
+    if (sid) {
+      SB.from("bus_tracking_sessions")
+        .update({ status: "ended", ended_at: new Date().toISOString() })
+        .eq("id", sid).then(function () {}).catch(function () {});
+    }
+  }
+
+  // one GPS fix -> bus_gps_reports (filtered / throttled)
+  function pushLocation(pos, force) {
+    if (!remoteOK() || !SH.on || !pos || !pos.coords) return;
+    var t = I18N[lang], c = pos.coords, now = Date.now();
+    var fixAge = now - (pos.timestamp || now);
+
+    if (fixAge > GEO_MAX_AGE) { console.warn("[gps] stale fix ignored", fixAge + "ms"); return; }
+    if (c.accuracy != null && c.accuracy > GEO_MAX_ACC) {
+      console.warn("[gps] low accuracy ignored", c.accuracy + "m");
+      if (now - GEO.warnedAcc > 60000) { GEO.warnedAcc = now; showToast(t.lowAcc); }
+      return;
+    }
+    if (!force) {
+      var since = now - GEO.lastPush;
+      if (since < GEO_MIN_MS) return;
+      var moved = GEO.lastPush ? hav([GEO.lastLat, GEO.lastLng], [c.latitude, c.longitude]) : Infinity;
+      if (moved < GEO_MIN_MOVE && since < GEO_IDLE_MS) return;    // parked: stay quiet
+    }
+    GEO.lastPush = now; GEO.lastLat = c.latitude; GEO.lastLng = c.longitude;
+
+    SB.from("bus_gps_reports").upsert({
+      user_id: sbUser.id,
+      bus_n: SH.bus,
+      session_id: GEO.session,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      speed: c.speed == null ? null : c.speed,          // m/s, converted server-side
+      heading: c.heading == null ? null : c.heading,
+      accuracy: c.accuracy == null ? null : c.accuracy,
+      active: true,
+      recorded_at: new Date(pos.timestamp || now).toISOString(),
+      updated_at: new Date(now).toISOString()
+    }, { onConflict: "user_id" })
+      .then(function (res) { if (res && res.error) console.error("[gps] upload failed", res.error); })
+      .catch(function (e) { console.error("[gps] upload threw", e); });
+  }
+
+  // stop contributing: flip the row inactive (keepalive so it survives tab close)
+  function markInactive(useBeacon) {
+    if (!remoteOK()) return;
+    var body = { user_id: sbUser.id, bus_n: SH.bus || 0, active: false,
+                 updated_at: new Date().toISOString() };
+    if (useBeacon) {
+      try {
+        fetch(SUPABASE.url + "/rest/v1/bus_gps_reports?on_conflict=user_id", {
+          method: "POST", keepalive: true, body: JSON.stringify(body),
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE.key,
+            Authorization: "Bearer " + ((sbSession && sbSession.access_token) || SUPABASE.key),
+            Prefer: "resolution=merge-duplicates"
+          }
+        }).catch(function () {});
+        return;
+      } catch (e) {}
+    }
+    SB.from("bus_gps_reports").upsert(body, { onConflict: "user_id" })
+      .then(function () {}).catch(function () {});
+  }
+
+  function stopShare(silent, viaBeacon) {
     clearTimeout(SH.guard); SH.guard = 0;
     if (SH.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(SH.watch);
     var was = SH.on;
+    if (was) { markInactive(!!viaBeacon); endSession(); }   // no longer contributing
     SH.on = false; SH.bus = 0; SH.watch = null; SH.fix = 0;
+    GEO.lastPush = 0; GEO.lastLat = 0; GEO.lastLng = 0;
     if (was) syncRiderStats();
     updateShareUi();
     if (LB.open) renderLeaderboard();
@@ -3803,19 +4319,31 @@
   // The 12s guard covers browsers/contexts that never call back at all.
   function startShare(n) {
     var t = I18N[lang];
-    if (!navigator.geolocation) { showToast(t.locFail); return; }
+    if (!geoSupported()) { showToast(t.locFail); return; }
+    if (!n) { console.warn("[gps] no bus selected"); showToast(t.locFail); return; }
+    if (!remoteOK()) { showToast(t.needAuth); return; }   // RLS needs a signed-in user
     stopShare(true);
     SH.bus = n; SH.fix = 0; SH.last = Date.now();
     clearTimeout(SH.guard);
     SH.guard = setTimeout(function () {
       if (SH.bus === n && !SH.on) { SH.bus = 0; showToast(t.locTimeout); }
     }, 12000);
-    navigator.geolocation.getCurrentPosition(function () {
+    navigator.geolocation.getCurrentPosition(function (pos) {
       if (SH.bus !== n) return;                    // user switched/cancelled while this was pending
       clearTimeout(SH.guard); SH.guard = 0;
       SH.on = true; SH.fix = Date.now();
-      SH.watch = navigator.geolocation.watchPosition(function () { SH.fix = Date.now(); }, function (err) {
-        if (err && (err.code === 1 || err.code === 2)) { stopShare(true); showToast(t.locFail); }
+      beginSession(n).then(function () {
+        if (!SH.on || SH.bus !== n) return;
+        pushLocation(pos, true);                   // first fix -> rider counted on this bus
+      });
+      SH.watch = navigator.geolocation.watchPosition(function (p2) {
+        SH.fix = Date.now();
+        pushLocation(p2);                          // continuous lat/lng/speed/heading -> Supabase
+      }, function (err) {
+        console.warn("[gps] watch error", err && err.code, err && err.message);
+        if (err && err.code === 1) { stopShare(true); showToast(t.permHelp); }
+        else if (err && err.code === 2) { stopShare(true); showToast(t.locFail); }
+        // code 3 (timeout) is transient: keep watching
       }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
       updateShareUi();
       showToast(t.shareOn);
@@ -3824,7 +4352,8 @@
       if (SH.bus !== n) return;
       clearTimeout(SH.guard); SH.guard = 0;
       SH.bus = 0;
-      showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+      console.warn("[gps] first fix failed", err && err.code, err && err.message);
+      showToast(err && err.code === 1 ? t.permHelp : t.locTimeout);
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
   }
   function toggleShare(n) {
@@ -3843,10 +4372,19 @@
     if (SH.on && !document.hidden && now - SH.fix < 90000) {
       store("pust-share-ms", String((+load("pust-share-ms") || 0) + Math.min(now - SH.last, 15000)));
       if (remoteOK() && now - lastStatSync > 30000) { lastStatSync = now; syncRiderStats(); }
+      // heartbeat: a parked bus still needs to look "Live" to passengers
+      if (GEO.lastPush && now - GEO.lastPush > GEO_HEARTBEAT && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (p) { pushLocation(p, true); },
+          function () {}, { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 });
+      }
     }
     SH.last = now;
     if (LB.open) renderLeaderboard();
   }, 5000);
+
+  // leaving the page / closing the tab = leaving the bus -> mark inactive
+  window.addEventListener("pagehide", function () { if (SH.on) stopShare(true, true); });
+  window.addEventListener("beforeunload", function () { if (SH.on) stopShare(true, true); });
 
   /* ----- ranking: live from Supabase, sample data if offline ----- */
   var LBC = { list: null, at: 0, busy: false, deadUntil: 0 };
@@ -4256,5 +4794,5 @@
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1604b8e1f5942',t:'MTc5MDA4MDgwNQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1604b8e1f5942',t:'MTc5MDA4MDgwNQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1ecd84f69ba56',t:'MTc5MDA4NjU2Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
