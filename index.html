@@ -636,6 +636,10 @@
   .mname { display: block; font-size: 15px; font-weight: 600; color: var(--accent); word-break: break-word; }
   .mtext { margin: 3px 0 0; font-size: 16px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
   .mtext.gone { font-style: italic; color: var(--muted); }
+  .cwarn { margin: 0 14px 8px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px;
+    line-height: 1.45; font-weight: 600; background: rgba(240,145,58,.14);
+    border: 1px solid rgba(240,145,58,.4); color: #b45309; }
+  [data-theme="dark"] .cwarn { color: #fcd34d; }
   .mquote { margin-top: 6px; padding: 3px 10px; border-left: 3px solid var(--accent); font-size: 13.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mquote b { font-weight: 600; margin-right: 6px; }
   .mmeta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); }
@@ -1128,6 +1132,7 @@
       </div>
     </div>
   </div>
+  <div class="cwarn" id="cWarn" hidden></div>
   <div class="cmsgs" id="cMsgs"><div class="cmsgs-in" id="cMsgsIn"></div></div>
   <div class="cbanner" id="cBanner" hidden>
     <span id="cBannerTxt"></span>
@@ -1255,6 +1260,9 @@
       chatInfo: "About this chat", ridersActive: "{n} riders active now",
       chatRules: "Please be respectful. Abuse, hate speech and spam are not allowed. Use Report on any message that breaks the rules.",
       chatDemo: "Offline mode: messages are saved on this device only.",
+      sendNeedsLogin: "Couldn't send — you need to be signed in. Turn on Anonymous sign-ins in Supabase.",
+      chatLocalWarn: "These messages stay on your phone — other riders cannot see them. Guest sign-in is turned off for this site.",
+      chatSignedIn: "Connected. Everyone in this bus sees your messages.",
       chatSynced: "Messages are saved online and sync live between riders.",
       agoHr: "{n}h ago",
       profile: "Profile", appSettings: "App Settings", language: "Language", langOther: "বাংলা", appearance: "Appearance",
@@ -1347,6 +1355,9 @@
       chatInfo: "এই চ্যাট সম্পর্কে", ridersActive: "এখন {n} জন সক্রিয়",
       chatRules: "অনুগ্রহ করে ভদ্র থাকুন। গালাগালি, ঘৃণামূলক কথা ও স্প্যাম নিষিদ্ধ। নিয়ম ভাঙে এমন যেকোনো মেসেজে রিপোর্ট চাপুন।",
       chatDemo: "অফলাইন মোড: মেসেজ শুধু এই ডিভাইসে সেভ থাকে।",
+      sendNeedsLogin: "পাঠানো যায়নি — সাইন ইন করা লাগবে। Supabase-এ Anonymous sign-ins চালু করুন।",
+      chatLocalWarn: "এই মেসেজগুলো শুধু আপনার ফোনে আছে — অন্য যাত্রীরা দেখতে পাচ্ছে না। এই সাইটে গেস্ট সাইন-ইন বন্ধ আছে।",
+      chatSignedIn: "সংযুক্ত। এই বাসের সবাই আপনার মেসেজ দেখতে পাবে।",
       chatSynced: "মেসেজ অনলাইনে সেভ হয় এবং সব যাত্রীর সাথে লাইভ সিঙ্ক হয়।",
       agoHr: "{n} ঘণ্টা আগে",
       profile: "প্রোফাইল", appSettings: "অ্যাপ সেটিংস", language: "ভাষা", langOther: "English", appearance: "থিম",
@@ -1951,6 +1962,34 @@
   }
 
   /* ----- Sign-in via Supabase ----- */
+  /* Chat needs an account (the security rules require one). A rider who has
+     not signed in is signed in anonymously behind the scenes, so chat "just
+     works" for guests too. Someone already signed in with Google/Apple/email
+     keeps that account — we never replace it. */
+  var autoAuthP = null;
+  function ensureChatAuth() {
+    if (sbUser) return Promise.resolve(true);        // already signed in
+    if (!SB) return Promise.resolve(false);
+    if (autoAuthP) return autoAuthP;
+    autoAuthP = SB.auth.signInAnonymously()
+      .then(function (res) {
+        autoAuthP = null;
+        if (res.error || !res.data || !res.data.user) {
+          AUTOAUTH_ERR = res.error && res.error.message ? res.error.message : "signin_failed";
+          return false;
+        }
+        applySbSession(res.data.session);
+        return true;
+      })
+      .catch(function (e) {
+        autoAuthP = null;
+        AUTOAUTH_ERR = (e && e.message) || "signin_failed";
+        return false;
+      });
+    return autoAuthP;
+  }
+  var AUTOAUTH_ERR = null;
+
   function whenSbReady(fn) {
     if (sbLoadState !== "loading") { fn(); return; }
     if (sbLoadP) sbLoadP.then(fn, fn); else fn();
@@ -3202,10 +3241,14 @@
     $("chatList").hidden = false;
     lockScroll();
     renderChatList();
-    if (remoteOK() && !chatRemoteDead()) {
-      fetchChatListRemote().then(function () { if (CH.listOpen) renderChatList(); });
-      subscribeChatList();
-    }
+    ensureChatAuth().then(function () {
+      if (!CH.listOpen) return;
+      renderChatList();                       // reflect the new sign-in state
+      if (remoteOK() && !chatRemoteDead()) {
+        fetchChatListRemote().then(function () { if (CH.listOpen) renderChatList(); });
+        subscribeChatList();
+      }
+    });
   }
   function closeChatList() {
     CH.listOpen = false;
@@ -3227,6 +3270,12 @@
     $("cSubTxt").textContent = sub ? t.subOnMsg : t.subMsg;
     $("cSubBtn").textContent = sub ? t.subscribed : t.subscribe;
     $("cSubBtn").classList.toggle("on", sub);
+
+    var warn = $("cWarn");
+    if (warn) {
+      if (chatRemoteMode()) { warn.hidden = true; warn.textContent = ""; }
+      else { warn.hidden = false; warn.textContent = t.chatLocalWarn; }
+    }
 
     var ann = chatAnn(x.n);
     $("cAnnTxt").textContent = ann ? ann.t : t.noAnn;
@@ -3278,19 +3327,24 @@
     $("cAnn").classList.remove("open");
     $("chatRoom").hidden = false;
     lockScroll();
-    if (remoteOK() && !chatRemoteDead()) {
-      fetchChatRemote(n).then(function (ok) {
-        if (!ok) markChatDead();
-        return fetchAnnRemote(n);
-      }).then(function () {
-        if (!CH.open || CH.n !== n) return;
+    renderChat(true);                        // show the room immediately
+    ensureChatAuth().then(function () {
+      if (!CH.open || CH.n !== n) return;
+      if (remoteOK() && !chatRemoteDead()) {
+        fetchChatRemote(n).then(function (ok) {
+          if (!ok) markChatDead();
+          return fetchAnnRemote(n);
+        }).then(function () {
+          if (!CH.open || CH.n !== n) return;
+          renderChat(true);
+          subscribeRoom(n);
+          subscribePresence();
+          presenceUpdate();
+        });
+      } else {
         renderChat(true);
-        subscribeRoom(n);
-        presenceUpdate();
-      });
-    } else {
-      renderChat(true);
-    }
+      }
+    });
   }
   function closeChat() {
     CH.open = false;
@@ -3316,16 +3370,22 @@
       SB.from("chat_messages").insert(row).select()
         .then(function (res) {
           if (res.error || !res.data || !res.data.length) {
-            showToast(t.sendFail);
-            chatSaveMsg(n0, { id: "m" + Date.now() + randomState().slice(0, 4), u: chatName(), t: text, ts: Date.now(), mine: true, re: rep });
-            if (CH.open && CH.n === n0) renderChat(true);
+            // Say why it failed instead of quietly saving it on this phone.
+            var msg = res.error && res.error.message ? res.error.message : "";
+            showToast(/row-level security|violates/i.test(msg) ? t.sendNeedsLogin : t.sendFail);
+            inp.value = text;                   // give the text back, don't lose it
+            $("cSend").disabled = false;
             return;
           }
           pushCached(n0, rowToMsg(res.data[0]));
           if (CH.open && CH.n === n0) renderChat(true);
           else if (CH.listOpen) renderChatList();
         })
-        .catch(function () { showToast(t.sendFail); });
+        .catch(function () {
+          showToast(t.sendFail);
+          inp.value = text;
+          $("cSend").disabled = false;
+        });
     } else {
       var msg = { id: "m" + Date.now() + randomState().slice(0, 4), u: chatName(), t: text, ts: Date.now(), mine: true };
       if (rep) msg.re = rep;
@@ -4196,6 +4256,5 @@
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e348421e48814e',t:'MTc4OTkzMzAyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1604b8e1f5942',t:'MTc5MDA4MDgwNQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
