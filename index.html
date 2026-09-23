@@ -1307,10 +1307,15 @@
       guestOffline: "Couldn't reach the server — guest mode works on this device only",
       guestNotEnabled: "Guest accounts aren't enabled yet — turn on 'Anonymous' in Supabase → Authentication → Providers",
       authLoading: "Loading sign-in… try again in a moment", appleUser: "Apple User",
-      liveDemo: "Live demo", mapLoading: "Loading map…",
+      liveDemo: "Live GPS", mapLoading: "Loading map…",
       mapError: "Couldn't load the map. Check your internet connection.", retry: "Try again",
       kmh: "km/h", nextStop: "Next stop", atStop: "At stop", locFail: "Couldn't get your location",
       locTimeout: "Couldn't get a location fix. Check that location is allowed for this page, then try again.",
+      locDenied: "Location permission is blocked. Allow Location for this site in your browser/phone settings, then try again.",
+      locNeedSecure: "Phone GPS works only on HTTPS or localhost. Publish/open this app on an HTTPS site, then allow Location.",
+      locPreviewBlocked: "This preview or frame cannot access phone GPS. Open the app in a normal HTTPS browser tab and allow Location.",
+      locUnavailable: "Location service is unavailable. Turn on GPS/location services and try again.",
+      liveShared: "Live from {u}", liveRiders: "{n} riders", gpsFallback: "No shared GPS yet",
       win10: "10 min", win30: "30 min", win60: "1 hour", win360: "6 hours",
       complete: "complete", searchBuses: "Search buses…", noBuses: "No buses found",
       title: "PUST Bus Status", departure: "Departure", bus: "Bus",
@@ -1409,10 +1414,15 @@
       guestOffline: "সার্ভারে পৌঁছানো যায়নি — অতিথি মোড শুধু এই ডিভাইসে চলবে",
       guestNotEnabled: "অতিথি অ্যাকাউন্ট এখনও চালু নয় — Supabase → Authentication → Providers-এ 'Anonymous' চালু করুন",
       authLoading: "সাইন ইন লোড হচ্ছে… একটু পরে আবার চেষ্টা করুন", appleUser: "অ্যাপল ব্যবহারকারী",
-      liveDemo: "লাইভ ডেমো", mapLoading: "ম্যাপ লোড হচ্ছে…",
+      liveDemo: "লাইভ GPS", mapLoading: "ম্যাপ লোড হচ্ছে…",
       mapError: "ম্যাপ লোড করা যায়নি। ইন্টারনেট সংযোগ দেখুন।", retry: "আবার চেষ্টা করুন",
       kmh: "কিমি/ঘণ্টা", nextStop: "পরবর্তী স্টপ", atStop: "স্টপে", locFail: "আপনার অবস্থান পাওয়া যায়নি",
       locTimeout: "লোকেশন পাওয়া যায়নি। এই পেজের জন্য লোকেশন অনুমতি দেওয়া আছে কিনা দেখে আবার চেষ্টা করুন।",
+      locDenied: "এই সাইটের Location permission blocked আছে। ব্রাউজার/ফোন সেটিংস থেকে Location allow করে আবার চেষ্টা করুন।",
+      locNeedSecure: "ফোনের GPS শুধু HTTPS সাইট বা localhost-এ কাজ করে। অ্যাপটি HTTPS সাইটে খুলে Location allow করুন।",
+      locPreviewBlocked: "এই preview/frame থেকে ফোনের GPS নেওয়া যায় না। অ্যাপটি normal HTTPS browser tab-এ খুলে Location allow করুন।",
+      locUnavailable: "ফোনের Location/GPS service বন্ধ বা unavailable। GPS চালু করে আবার চেষ্টা করুন।",
+      liveShared: "{u} থেকে লাইভ", liveRiders: "{n} জন", gpsFallback: "এখনও GPS শেয়ার নেই",
       win10: "১০ মিনিট", win30: "৩০ মিনিট", win60: "১ ঘণ্টা", win360: "৬ ঘণ্টা",
       complete: "সম্পন্ন", searchBuses: "বাস খুঁজুন…", noBuses: "কোনো বাস পাওয়া যায়নি",
       title: "পাস্ট বাস স্ট্যাটাস", departure: "প্রস্থান", bus: "বাস",
@@ -1574,6 +1584,7 @@
     subscribeFleetRealtime();
     subscribeSiteRealtime();
     subscribeStatsRealtime();
+    subscribeLiveLocationsRealtime();
     try {
       SB.auth.onAuthStateChange(function (evt, s) { applySbSession(s); });
     } catch (e) {}
@@ -1679,6 +1690,9 @@
 
     PLACES = P; ROUTES = Rs; BUS_NAMES = names; TIMETABLE = TT;
     DATA_FROM_DB = true;
+    tagPlaces();
+    if (typeof buildLiveMapRoutes === "function") buildLiveMapRoutes(true);
+    routesP = null;
     refreshTrips();
     if (M.open && M.ready) rebuildMapBuses();
     return true;
@@ -2169,23 +2183,22 @@
   });
 
   /* =====================================================
-     LIVE MAP  (Leaflet + free map tiles, no API key needed)
+     LIVE MAP  (Leaflet + MapTiler tiles + student shared GPS)
      -----------------------------------------------------
-     The buses you see are SIMULATED: they drive back and forth along
-     the routes below, so students can see how the screen works.
-     Their trips (start time, speed, delay) come from the `buses` table in
-     Supabase, so editing that table changes the map too. For real GPS
-     tracking, have drivers' phones write positions to a Supabase table and
-     call moveBus(bus, lat, lng) from a realtime subscription.
+     When a rider taps “I'm On This Bus” and starts Location Sharing, their phone
+     writes GPS fixes to Supabase. The Live Map subscribes to those rows and moves
+     that bus marker in real time. If no rider is sharing for a bus, it falls
+     back to the timetable simulation so the screen is never empty.
      ROUTES / PLACES (just below) hold the real PUST bus routes from the transport notice.
      ===================================================== */
   var LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
   var LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+  var MAPTILER_KEY = "N5mYDpvWN7w13RUQqPb2";
   var TILES = {
-    light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    light: "https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=" + MAPTILER_KEY,
+    dark: "https://api.maptiler.com/maps/dataviz-dark/{z}/{x}/{y}.png?key=" + MAPTILER_KEY
   };
-  var TILE_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
+  var TILE_ATTR = '© <a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>';
   var SIM_SPEEDUP = 12;   // demo only: buses move 12x faster than real life so the motion is easy to see
   var STOP_DWELL = 4;     // seconds a bus waits at each stop
 
@@ -2221,7 +2234,13 @@
     ataikula:    { en: "Ataikula",            bn: "আতাইকুলা",           ll: [24.0210, 89.3400] },
     madhpur:     { en: "Madhpur",             bn: "মাধপুর",             ll: [24.0250, 89.3600] }
   };
-  function stopsOf(list) { return list.split(" ").map(function (id) { return PLACES[id]; }); }
+  function tagPlaces() {
+    Object.keys(PLACES).forEach(function (k) { if (PLACES[k]) PLACES[k].id = k; });
+  }
+  function stopsOf(list) {
+    tagPlaces();
+    return list.split(" ").map(function (id) { return PLACES[id]; }).filter(Boolean);
+  }
 
   // mins = how long one run takes (only the three long morning runs have a return time printed on the
   // notice: Padma 7:00-8:00, Tista 7:10-8:10, Karnaphuli 7:30-8:15; the other values are estimates).
@@ -2252,6 +2271,65 @@
       name: { en: "Campus ⇄ Madhpur", bn: "ক্যাম্পাস ⇄ মাধপুর" },
       stops: stopsOf("campus bagchipara pushpapara kuchiamora ataikula madhpur ataikula kuchiamora pushpapara bagchipara campus") }
   ];
+  /* Live Map route setup: every bus starts from PUST/Campus and then goes
+     toward its assigned destination. These routes are for the Live Map display
+     only; they do not create fake bus movement. A bus marker appears only when
+     someone on that bus shares GPS. */
+  var LIVE_ROUTE_SPECS = {
+    4:  { id: "live-padma-sujanagar", color: "#4caf6b", name: { en: "PUST → Sujanagar", bn: "পাস্ট → সুজানগর" },
+          stops: "campus munsurabad hajirhat dubalia sujanagar" },
+    5:  { id: "live-meghna-meril", color: "#3b82f6", name: { en: "PUST → Meril Bypass via Pabna Town", bn: "পাস্ট → মেরিল বাইপাস (পাবনা শহর হয়ে)" },
+          stops: "campus terminal mojahid ananta court shohor collegegate gachhpara meril" },
+    6:  { id: "live-jamuna-gachhpara", color: "#4fbfcb", name: { en: "PUST → Gachhpara via College Gate", bn: "পাস্ট → গাছপাড়া (কলেজগেট হয়ে)" },
+          stops: "campus terminal mojahid ananta court shohor collegegate gachhpara" },
+    7:  { id: "live-ichamati-maktab", color: "#8b5cf6", name: { en: "PUST → Maktab Mor via Meril Bypass", bn: "পাস্ট → মক্তব মোড় (মেরিল বাইপাস হয়ে)" },
+          stops: "campus terminal meril gachhpara maktab" },
+    8:  { id: "live-tista-ishwardi", color: "#f0913a", name: { en: "PUST → Ishwardi", bn: "পাস্ট → ঈশ্বরদী" },
+          stops: "campus terminal meril gachhpara tebunia dashuria ishwardi" },
+    9:  { id: "live-karnaphuli-madhpur", color: "#e5586e", name: { en: "PUST → Madhpur", bn: "পাস্ট → মাধপুর" },
+          stops: "campus bagchipara pushpapara kuchiamora ataikula madhpur" },
+    10: { id: "live-brtc10-shohor", color: "#b23fd0", name: { en: "PUST → Pabna Town via Meril Bypass", bn: "পাস্ট → পাবনা শহর (মেরিল বাইপাস হয়ে)" },
+          stops: "campus terminal meril gachhpara maktab shohor" },
+    11: { id: "live-brtc11-mojahid", color: "#2fb7a0", name: { en: "PUST → Mojahid Club via Meril Bypass", bn: "পাস্ট → মোজাহিদ ক্লাব (মেরিল বাইপাস হয়ে)" },
+          stops: "campus terminal meril gachhpara maktab shohor court ananta mojahid" }
+  };
+  var LIVE_ROUTE_BY_BUS = {};
+  function buildLiveMapRoutes(force) {
+    if (!force && Object.keys(LIVE_ROUTE_BY_BUS).length) return LIVE_ROUTE_BY_BUS;
+    tagPlaces();
+    LIVE_ROUTE_BY_BUS = {};
+    Object.keys(LIVE_ROUTE_SPECS).forEach(function (n) {
+      var s = LIVE_ROUTE_SPECS[n], stops = stopsOf(s.stops);
+      if (stops.length < 2) return;
+      LIVE_ROUTE_BY_BUS[n] = { id: s.id, color: s.color, mins: 45, kmh: 30, loop: false, name: s.name, stops: stops };
+    });
+    return LIVE_ROUTE_BY_BUS;
+  }
+  function liveRouteByBus(n) {
+    buildLiveMapRoutes();
+    var x = LIVE_ROUTE_BY_BUS[n];
+    if (x) return x;
+    var trip = tripByN(n);
+    return trip ? routeById(trip.route) : ROUTES[0];
+  }
+  function allLiveMapRoutes() {
+    buildLiveMapRoutes();
+    var seen = {}, out = [];
+    Object.keys(LIVE_ROUTE_BY_BUS).forEach(function (n) {
+      var r = LIVE_ROUTE_BY_BUS[n];
+      if (r && !seen[r.id]) { seen[r.id] = 1; out.push(r); }
+    });
+    return out;
+  }
+  function allRoutableMapRoutes() {
+    var seen = {}, out = [];
+    ROUTES.concat(allLiveMapRoutes()).forEach(function (r) {
+      if (r && !seen[r.id]) { seen[r.id] = 1; out.push(r); }
+    });
+    return out;
+  }
+  buildLiveMapRoutes(true);
+
   var BUS_GLYPH = '<svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="14.5" rx="3" fill="#fff"/>' +
     '<rect x="7" y="6" width="10" height="5" rx="1.2" fill="var(--c)"/>' +
     '<circle cx="8.8" cy="14.5" r="1.1" fill="var(--c)"/><circle cx="15.2" cy="14.5" r="1.1" fill="var(--c)"/>' +
@@ -2259,6 +2337,107 @@
 
   var M = { map: null, tile: null, tileDark: null, ready: false, buses: [], sel: null, follow: false,
             flying: false, raf: 0, last: 0, lastUi: 0, open: false, me: null, meAcc: null };
+
+  // Live GPS rows from the bus_location_shares table. One signed-in rider writes
+  // one row; the map groups fresh rows by bus and uses the freshest/weighted fix.
+  var LIVE = { rows: {}, byBus: {}, maxAge: 120000, tableOK: true, retryAt: 0, ch: null };
+
+  function liveKey(r) { return r && (r.user_id || r.uid || ("local:" + (r.bus_n || r.bus) + ":" + (r.display_name || r.name || "rider"))); }
+  function normalLiveRow(r) {
+    if (!r) return null;
+    var lat = +r.lat, lng = +r.lng, bus = +(r.bus_n || r.bus);
+    if (!isFinite(lat) || !isFinite(lng) || !isFinite(bus)) return null;
+    var sp = r.speed == null ? null : +r.speed;
+    var hd = r.heading == null ? null : +r.heading;
+    var ac = r.accuracy == null ? null : +r.accuracy;
+    return {
+      key: liveKey(r), bus_n: bus, lat: lat, lng: lng,
+      name: r.display_name || r.name || "",
+      acc: isFinite(ac) ? ac : 0,
+      speed: isFinite(sp) ? sp : null,                 // browser Geolocation speed = metres/second
+      speedKmh: isFinite(sp) ? sp * 3.6 : null,
+      heading: isFinite(hd) ? hd : null,
+      ts: r.updated_at ? new Date(r.updated_at).getTime() : (r.ts || Date.now()),
+      active: r.active !== false
+    };
+  }
+  function liveFresh(row) { return row && row.active && Date.now() - row.ts <= LIVE.maxAge; }
+  function bestLiveName(rows) {
+    if (!rows.length) return "";
+    if (rows.length > 1) return I18N[lang].liveRiders.replace("{n}", num(rows.length));
+    return rows[0].name || I18N[lang].guestName;
+  }
+  function rebuildLiveByBus() {
+    var groups = {}, now = Date.now();
+    Object.keys(LIVE.rows).forEach(function (k) {
+      var r = LIVE.rows[k];
+      if (!r || !r.active || now - r.ts > LIVE.maxAge || !isFinite(r.lat) || !isFinite(r.lng)) return;
+      (groups[r.bus_n] = groups[r.bus_n] || []).push(r);
+    });
+    var by = {};
+    Object.keys(groups).forEach(function (n) {
+      var rows = groups[n].slice().sort(function (a, b) { return b.ts - a.ts; });
+      var latest = rows[0], lat = 0, lng = 0, wsum = 0;
+      rows.forEach(function (r) {
+        var w = 1 / Math.max(25, r.acc || 50);       // better accuracy = slightly stronger vote
+        lat += r.lat * w; lng += r.lng * w; wsum += w;
+      });
+      by[n] = {
+        bus_n: +n, lat: lat / wsum, lng: lng / wsum, ts: latest.ts,
+        name: bestLiveName(rows), count: rows.length,
+        acc: latest.acc, speedKmh: latest.speedKmh, heading: latest.heading
+      };
+    });
+    LIVE.byBus = by;
+    if (M.ready && M.open) {
+      syncLiveMapBuses(false);
+    } else if (M.ready) {
+      M.buses.forEach(function (b) { b.live = LIVE.byBus[b.n] || null; });
+      updateCards();
+    }
+  }
+  function liveForBus(n) {
+    var row = LIVE.byBus[n];
+    return row && Date.now() - row.ts <= LIVE.maxAge ? row : null;
+  }
+  function fetchLiveLocations(force) {
+    if (!SB) return Promise.resolve(false);
+    if (!force && LIVE.tableOK === false && Date.now() < LIVE.retryAt) return Promise.resolve(false);
+    var cutoff = new Date(Date.now() - LIVE.maxAge).toISOString();
+    return SB.from("bus_location_shares")
+      .select("user_id, bus_n, display_name, lat, lng, accuracy, speed, heading, active, updated_at")
+      .eq("active", true).gte("updated_at", cutoff)
+      .then(function (res) {
+        if (res.error) { LIVE.tableOK = false; LIVE.retryAt = Date.now() + 60000; return false; }
+        LIVE.tableOK = true;
+        LIVE.rows = {};
+        (res.data || []).forEach(function (r) {
+          var row = normalLiveRow(r);
+          if (row && row.key) LIVE.rows[row.key] = row;
+        });
+        rebuildLiveByBus();
+        return true;
+      }).catch(function () { LIVE.tableOK = false; LIVE.retryAt = Date.now() + 60000; return false; });
+  }
+  function subscribeLiveLocationsRealtime() {
+    if (!SB || LIVE.ch) return;
+    LIVE.ch = SB.channel("pust-bus-live-locations");
+    LIVE.ch.on("postgres_changes", { event: "*", schema: "public", table: "bus_location_shares" }, function (payload) {
+      if (!payload) return;
+      if (payload.eventType === "DELETE") {
+        if (payload.old && liveKey(payload.old)) delete LIVE.rows[liveKey(payload.old)];
+        fetchLiveLocations(true);                  // also covers tables without REPLICA IDENTITY FULL
+        return;
+      }
+      var row = normalLiveRow(payload.new);
+      if (row && row.key) {
+        if (row.active) LIVE.rows[row.key] = row;
+        else delete LIVE.rows[row.key];
+        rebuildLiveByBus();
+      }
+    }).subscribe();
+    fetchLiveLocations(true);
+  }
 
   function num(n) { return lang === "bn" ? String(n).replace(/\d/g, function (d) { return "০১২৩৪৫৬৭৮৯".charAt(d); }) : String(n); }
   function stopName(r, i) { return r.stops[i][lang]; }
@@ -2361,7 +2540,7 @@
   var routesP = null;
   function loadRoutes() {
     if (routesP) return routesP;
-    routesP = Promise.all(ROUTES.map(function (r) {
+    routesP = Promise.all(allRoutableMapRoutes().map(function (r) {
       if (r.pts) return r;
       return fetchRoute(r).then(function (d) { prepareRoute(r, d); return r; });
     }));
@@ -2393,10 +2572,11 @@
   }
 
   function applyTiles() {
-    var dark = isDark();
+    // Live Map always stays in day/light mode, even when the app theme is dark.
+    var dark = false;
     if (M.tile && M.tileDark === dark) return;
     if (M.tile) M.map.removeLayer(M.tile);
-    M.tile = L.tileLayer(dark ? TILES.dark : TILES.light, { subdomains: "abcd", maxZoom: 19, attribution: TILE_ATTR }).addTo(M.map);
+    M.tile = L.tileLayer(TILES.light, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 20, attribution: TILE_ATTR }).addTo(M.map);
     M.tileDark = dark;
   }
 
@@ -2410,28 +2590,77 @@
     });
   }
 
-  function createBuses() {
-    var byId = {};
-    ROUTES.forEach(function (r) { byId[r.id] = r; });
-    M.buses = fleetFromTrips().map(function (f, idx) {
-      var r = byId[f.route];
-      var b = { id: f.id, n: f.n, r: r, s: f.start * r.total, dir: f.dir, kmh: f.kmh, v: f.kmh,
-                dwell: 0, atStop: -1, phase: idx * 2.1 };
-      var pos = pointAt(r, b.s);
-      b.h = f.dir > 0 ? pos.brg : (pos.brg + 180) % 360;
-      var icon = L.divIcon({
-        className: "bm-wrap",
-        html: '<div class="bm" style="--c:' + r.color + '"><div class="bm-dir"></div><div class="bm-body">' + BUS_GLYPH + '</div></div>',
-        iconSize: [44, 44], iconAnchor: [22, 22]
-      });
-      b.marker = L.marker(pos.ll, { icon: icon, keyboard: false, zIndexOffset: 1000 }).addTo(M.map);
-      var root = b.marker.getElement();
-      b.bmEl = root.querySelector(".bm");
-      b.dirEl = root.querySelector(".bm-dir");
-      b.dirEl.style.transform = "rotate(" + b.h + "deg)";
-      b.marker.on("click", function () { selectBus(b); });
-      return b;
+  function drawLiveMapRoutes() {
+    M.drawnRoutes = M.drawnRoutes || {};
+    var bounds = [];
+    allLiveMapRoutes().forEach(function (r) {
+      if (!r || !r.pts || !r.pts.length || M.drawnRoutes[r.id]) return;
+      drawRoute(r);
+      M.drawnRoutes[r.id] = 1;
+      bounds = bounds.concat(r.pts);
     });
+    return bounds;
+  }
+
+  function liveBusIds() {
+    return Object.keys(LIVE.byBus).filter(function (n) { return !!liveForBus(+n); })
+      .sort(function (a, b) { return (+a) - (+b); });
+  }
+
+  function createLiveBus(n, live, idx) {
+    var x = tripByN(n), r = liveRouteByBus(n) || (x ? routeById(x.route) : ROUTES[0]);
+    var hd = isFinite(live.heading) ? live.heading : 0;
+    var b = {
+      id: "b" + n, n: n, r: r, s: 0, dir: 1, kmh: x ? x.kmh : 0,
+      v: isFinite(live.speedKmh) ? live.speedKmh : 0,
+      dwell: 0, atStop: -1, phase: idx * 2.1, live: live,
+      lastLiveLL: [live.lat, live.lng], h: hd
+    };
+    var icon = L.divIcon({
+      className: "bm-wrap",
+      html: '<div class="bm" style="--c:' + r.color + '"><div class="bm-dir"></div><div class="bm-body">' + BUS_GLYPH + '</div></div>',
+      iconSize: [44, 44], iconAnchor: [22, 22]
+    });
+    b.marker = L.marker([live.lat, live.lng], { icon: icon, keyboard: false, zIndexOffset: 1000 }).addTo(M.map);
+    var root = b.marker.getElement();
+    b.bmEl = root && root.querySelector(".bm");
+    b.dirEl = root && root.querySelector(".bm-dir");
+    if (b.dirEl) b.dirEl.style.transform = "rotate(" + b.h + "deg)";
+    b.marker.on("click", function () { selectBus(b); });
+    return b;
+  }
+
+  // Live Map must not show timetable/simulated buses. It creates markers only
+  // for buses that currently have a fresh student/rider GPS share.
+  function syncLiveMapBuses(force) {
+    if (!M.map) return;
+    var ids = liveBusIds();
+    var sig = ids.join(",");
+    if (!force && M.liveSig === sig) {
+      M.buses.forEach(function (b) { b.live = liveForBus(b.n); });
+      updateCards();
+      return;
+    }
+    var keep = {}, next = [];
+    M.buses.forEach(function (b) {
+      if (!force && ids.indexOf(String(b.n)) >= 0) keep[b.n] = b;
+      else if (b.marker) M.map.removeLayer(b.marker);
+    });
+    ids.forEach(function (sn, idx) {
+      var n = +sn, live = liveForBus(n), b = keep[n];
+      if (!live) return;
+      if (!b) b = createLiveBus(n, live, idx);
+      b.live = live;
+      next.push(b);
+    });
+    M.buses = next;
+    M.liveSig = sig;
+    if (M.sel && ids.indexOf(String(M.sel.n)) < 0) { M.sel = null; M.follow = false; }
+    buildCards();
+  }
+
+  function createBuses() {
+    syncLiveMapBuses(true);
   }
 
   // fleet changed on the server -> rebuild the buses on the open map, live
@@ -2444,30 +2673,20 @@
     buildCards();
   }
 
-  /* ----- simulation (swap this for real GPS data) ----- */
+  /* ----- live GPS marker movement only (no timetable/fake movement) ----- */
   function stepBus(b, dt, t) {
-    var r = b.r;
-    if (b.dwell > 0) {
-      b.dwell -= dt; b.v = 0;
-      if (b.dwell <= 0) b.atStop = -1;
-    } else {
-      b.v = b.kmh * (1 + 0.12 * Math.sin(t / 3 + b.phase));
-      var s0 = b.s, s1 = s0 + b.dir * (b.v / 3.6) * SIM_SPEEDUP * dt, hit = -1;
-      for (var k = 0; k < r.stopD.length; k++) {
-        var d = r.stopD[k];
-        var crossed = b.dir > 0 ? (d > s0 + 0.5 && d <= s1) : (d < s0 - 0.5 && d >= s1);
-        if (crossed && (hit < 0 || (b.dir > 0 ? d < r.stopD[hit] : d > r.stopD[hit]))) hit = k;
-      }
-      if (hit >= 0) {
-        b.s = r.stopD[hit]; b.dwell = STOP_DWELL; b.atStop = hit; b.v = 0;
-        if (r.loop && hit === r.stopD.length - 1) { b.s = 0; b.atStop = 0; b.dir = 1; }   // back at Campus: start the next lap
-        else if (hit === 0) b.dir = 1; else if (hit === r.stopD.length - 1) b.dir = -1;
-      } else {
-        b.s = Math.max(0, Math.min(r.total, s1));
-      }
+    var live = liveForBus(b.n);
+    if (!live) {                 // no shared GPS = no marker movement / no fake timetable movement
+      b.live = null;
+      b.v = 0;
+      return;
     }
-    var pos = pointAt(r, b.s);
-    moveBus(b, pos.ll, b.dir > 0 ? pos.brg : (pos.brg + 180) % 360, dt);
+    b.live = live;
+    var ll = [live.lat, live.lng];
+    var hd = isFinite(live.heading) ? live.heading : (b.lastLiveLL ? bearing(b.lastLiveLL, ll) : b.h);
+    if (isFinite(live.speedKmh)) b.v = live.speedKmh;
+    moveBus(b, ll, hd, dt);
+    b.lastLiveLL = ll;
   }
 
   // Put a bus on the map. A real GPS feed would call this too.
@@ -2491,6 +2710,19 @@
   function buildCards() {
     var t = I18N[lang], wrap = $("busCards");
     wrap.innerHTML = "";
+    if (!M.buses.length) {
+      var empty = document.createElement("div");
+      empty.className = "bcard";
+      empty.style.setProperty("--c", "#3b82f6");
+      empty.innerHTML = '<span class="bc-ico">' + BUS_GLYPH + '</span>' +
+        '<span class="bc-main"><b class="bc-name"></b><small class="bc-route"></small><small class="bc-status"></small></span>' +
+        '<span class="bc-speed"><b>—</b><small>' + esc(t.kmh) + '</small></span>';
+      empty.querySelector(".bc-name").textContent = t.gpsFallback;
+      empty.querySelector(".bc-route").textContent = t.shareSub;
+      empty.querySelector(".bc-status").textContent = t.liveMap;
+      wrap.appendChild(empty);
+      return;
+    }
     M.buses.forEach(function (b) {
       var btn = document.createElement("button");
       btn.type = "button";
@@ -2514,6 +2746,12 @@
     var t = I18N[lang];
     M.buses.forEach(function (b) {
       if (!b.el) return;
+      var live = liveForBus(b.n);
+      if (live) {
+        b.el.status.textContent = t.liveShared.replace("{u}", live.name || t.guestName) + " · " + agoText(live.ts);
+        b.el.speed.textContent = isFinite(live.speedKmh) ? num(Math.round(live.speedKmh)) : "—";
+        return;
+      }
       b.el.status.textContent = b.dwell > 0 && b.atStop >= 0
         ? t.atStop + " · " + stopName(b.r, b.atStop)
         : t.nextStop + ": " + stopName(b.r, nextStopIdx(b));
@@ -2548,12 +2786,13 @@
     M.last = ts;
     M.buses.forEach(function (b) { stepBus(b, dt, ts / 1000); });
     if (M.follow && M.sel && !M.flying) M.map.panTo(M.sel.marker.getLatLng(), { animate: false });
-    if (ts - M.lastUi > 500) { M.lastUi = ts; updateCards(); }
+    if (ts - M.lastUi > 500) { M.lastUi = ts; rebuildLiveByBus(); updateCards(); }
     M.raf = requestAnimationFrame(tick);
   }
   function startLoop() {
     if (M.raf || !M.ready) return;
     M.last = performance.now();
+    fetchLiveLocations(false);
     M.raf = requestAnimationFrame(tick);
   }
 
@@ -2578,17 +2817,20 @@
       applyTiles();
       if (M.ready) return;
       return loadRoutes().then(function () {
-        var used = {};
-        TRIPS.forEach(function (x) { used[x.route] = true; });
-        ROUTES.forEach(function (r) { if (used[r.id]) drawRoute(r); });
+        var boundsPts = drawLiveMapRoutes();
         createBuses();
         M.ready = true;
-        M.map.fitBounds(L.latLngBounds(ROUTES[0].pts), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 150] });
+        if (boundsPts.length) {
+          M.map.fitBounds(L.latLngBounds(boundsPts), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 150] });
+        } else if (ROUTES[0] && ROUTES[0].pts) {
+          M.map.fitBounds(L.latLngBounds(ROUTES[0].pts), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 150] });
+        }
       });
     }).then(function () {
       if (!M.ready) return;
       buildCards();
       setOverlay(null);
+      fetchLiveLocations(true);
       if (M.open) startLoop();
       if (preN) {
         var pb = M.buses.filter(function (x) { return x.n === preN; })[0];
@@ -2611,7 +2853,7 @@
   $("mapRetry").addEventListener("click", function () { openMap(); });
   $("locateBtn").addEventListener("click", function () {
     if (!M.map) return;
-    if (!navigator.geolocation) { showToast(I18N[lang].locFail); return; }
+    if (!geoAvailable()) return;
     navigator.geolocation.getCurrentPosition(function (pos) {
       var ll = [pos.coords.latitude, pos.coords.longitude];
       if (M.me) M.map.removeLayer(M.me);
@@ -2621,7 +2863,7 @@
       M.follow = false;
       markSelected();
       M.map.flyTo(ll, Math.max(M.map.getZoom(), 15));
-    }, function () { showToast(I18N[lang].locFail); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+    }, function (err) { showGeoError(err); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   });
 
   /* =====================================================
@@ -3595,6 +3837,7 @@
   });
   // leaving the page -> drop presence right away instead of waiting for a timeout
   window.addEventListener("pagehide", function () {
+    if (SH && SH.on) clearSharedLocation();
     unsubscribeRoom();
     unsubscribeChatList();
     removePresence();
@@ -3873,7 +4116,7 @@
      has real rows, the Leaderboard screen just shows an empty state.
      ===================================================== */
   var LB = { open: false };
-  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0, lat: null, lng: null, acc: null };
+  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0, lat: null, lng: null, acc: null, pos: null, lastPub: 0 };
   var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, nearM: 250 };
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
   var IC_LS_PLANE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.2 3.4 3.2 10.9c-.9.4-.9 1.6.1 1.9l6.2 2.1 2.1 6.2c.3.9 1.6 1 1.9.1l7.5-18c.2-.5-.3-1-.8-.8zM11.3 14.1l-4.5-1.5 10.1-4.2-5.6 5.7zm1.5 3.9-1.5-4.4 5.7-5.7-4.2 10.1z"/></svg>';
@@ -3887,6 +4130,73 @@
   }
   function fmtN(n) { return num(String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",")); }
 
+  function updateLocalLiveFromPosition(n, pos) {
+    if (!pos || !pos.coords) return;
+    var c = pos.coords;
+    var row = normalLiveRow({
+      user_id: sbUser ? sbUser.id : "local-share", bus_n: n, display_name: chatName(),
+      lat: c.latitude, lng: c.longitude, accuracy: c.accuracy, speed: c.speed,
+      heading: c.heading, active: true,
+      updated_at: new Date().toISOString()
+    });
+    if (row && row.key) { LIVE.rows[row.key] = row; rebuildLiveByBus(); }
+  }
+  function publishSharedLocation(n, pos) {
+    SH.lastPub = Date.now();
+    updateLocalLiveFromPosition(n, pos);        // instant feedback on this device/map
+    if (!pos || !pos.coords || !SB) return;
+    ensureChatAuth().then(function (ok) {
+      if (!ok || !sbUser || !pos.coords) return;
+      var c = pos.coords;
+      SB.from("bus_location_shares").upsert({
+        user_id: sbUser.id,
+        bus_n: n,
+        display_name: chatName(),
+        lat: c.latitude,
+        lng: c.longitude,
+        accuracy: c.accuracy,
+        speed: c.speed,
+        heading: c.heading,
+        active: true,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" }).then(function (res) {
+        if (res.error) { LIVE.tableOK = false; LIVE.retryAt = Date.now() + 60000; }
+      }).catch(function () { LIVE.tableOK = false; LIVE.retryAt = Date.now() + 60000; });
+    });
+  }
+  function clearSharedLocation() {
+    if (sbUser && LIVE.rows[sbUser.id]) { delete LIVE.rows[sbUser.id]; rebuildLiveByBus(); }
+    if (remoteOK()) {
+      SB.from("bus_location_shares").update({ active: false, updated_at: new Date().toISOString() })
+        .eq("user_id", sbUser.id).then(function () {}).catch(function () {});
+    }
+  }
+
+  function geoNeedsSecureContext() {
+    var host = location.hostname || "";
+    var local = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    return location.protocol === "file:" || (!window.isSecureContext && !local);
+  }
+  function inFrame() {
+    try { return window.top !== window.self; } catch (e) { return true; }
+  }
+  function geoMessage(err) {
+    var t = I18N[lang], msg = err && err.message ? String(err.message) : "";
+    if (geoNeedsSecureContext()) return t.locNeedSecure;
+    if (/permissions policy|disabled in this document|sandbox|not allowed by/i.test(msg)) return t.locPreviewBlocked;
+    if (inFrame() && err && err.code === 1) return t.locPreviewBlocked;
+    if (err && err.code === 1) return t.locDenied;
+    if (err && err.code === 2) return t.locUnavailable;
+    if (err && err.code === 3) return t.locTimeout;
+    return t.locFail;
+  }
+  function showGeoError(err) { showToast(geoMessage(err)); }
+  function geoAvailable() {
+    if (!navigator.geolocation) { showToast(I18N[lang].locUnavailable); return false; }
+    if (geoNeedsSecureContext()) { showToast(I18N[lang].locNeedSecure); return false; }
+    return true;
+  }
+
   function updateShareUi() {
     $("rShare").setAttribute("aria-checked", SH.on && SH.bus === R.n ? "true" : "false");
   }
@@ -3894,7 +4204,8 @@
     clearTimeout(SH.guard); SH.guard = 0;
     if (SH.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(SH.watch);
     var was = SH.on;
-    SH.on = false; SH.bus = 0; SH.watch = null; SH.fix = 0;
+    SH.on = false; SH.bus = 0; SH.watch = null; SH.fix = 0; SH.pos = null; SH.lastPub = 0;
+    if (was) clearSharedLocation();
     if (was) syncRiderStats();
     updateShareUi();
     if (LB.open) renderLeaderboard();
@@ -3908,6 +4219,7 @@
   // The 12s guard covers browsers/contexts that never call back at all.
   function rememberShareFix(pos) {
     SH.fix = Date.now();
+    SH.pos = pos || null;
     if (pos && pos.coords) {
       SH.lat = pos.coords.latitude;
       SH.lng = pos.coords.longitude;
@@ -3916,7 +4228,7 @@
   }
   function startShare(n, firstPos) {
     var t = I18N[lang];
-    if (!navigator.geolocation) { showToast(t.locFail); return; }
+    if (!geoAvailable()) return;
     stopProximityWatch();
     stopShare(true);
     SH.bus = n; SH.fix = 0; SH.last = Date.now();
@@ -3927,15 +4239,17 @@
       clearTimeout(SH.guard); SH.guard = 0;
       SH.on = true;
       rememberShareFix(pos);
+      publishSharedLocation(n, pos);
       SH.watch = navigator.geolocation.watchPosition(function (p) {
         rememberShareFix(p);
+        publishSharedLocation(n, p);
         if (LS.open && LS.n === n) {
           LS.lastPos = p;
           if (LS.mode !== "active") LS.mode = "active";
           renderLocationShare();
         }
       }, function (err) {
-        if (err && (err.code === 1 || err.code === 2)) { stopShare(true); showToast(t.locFail); }
+        if (err && (err.code === 1 || err.code === 2)) { stopShare(true); showGeoError(err); }
       }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
       updateShareUi();
       showToast(LS.open ? t.locNearToast : t.shareOn);
@@ -3946,13 +4260,13 @@
     if (firstPos && firstPos.coords) { activate(firstPos); return; }
 
     SH.guard = setTimeout(function () {
-      if (SH.bus === n && !SH.on) { SH.bus = 0; showToast(t.locTimeout); }
+      if (SH.bus === n && !SH.on) { SH.bus = 0; showGeoError({ code: 3 }); }
     }, 12000);
     navigator.geolocation.getCurrentPosition(activate, function (err) {
       if (SH.bus !== n) return;
       clearTimeout(SH.guard); SH.guard = 0;
       SH.bus = 0;
-      showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+      showGeoError(err);
       if (LS.open) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); }
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
   }
@@ -3984,27 +4298,19 @@
     var myReq = ++LS.req, t = I18N[lang];
     LS.pending = true; LS.mode = "pending"; LS.lastPos = pos || null; renderLocationShare();
     var gotPos = pos && pos.coords ? Promise.resolve(pos) : new Promise(function (resolve, reject) {
-      if (!navigator.geolocation) { reject(new Error("geo")); return; }
+      if (!geoAvailable()) { reject({ handled: true }); return; }
       navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
     });
     gotPos.then(function (p) {
       if (myReq !== LS.req || !LS.open || LS.n !== n) return;
       LS.lastPos = p;
-      return busPointInfo(n, p).then(function (info) {
-        if (myReq !== LS.req || !LS.open || LS.n !== n) return;
-        if (!info) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); showToast(t.locNoBusPos); return; }
-        LS.lastInfo = info;
-        if (info.inside) {
-          LS.pending = false;
-          startShare(n, p);
-        } else {
-          LS.pending = false; LS.mode = "outside"; renderLocationShare(); showToast(t.locOutsideToast); startProximityWatch(n);
-        }
-      });
+      LS.lastInfo = { at: Date.now() };
+      LS.pending = false;
+      startShare(n, p);       // no fake bus-position gate: student GPS is the live bus position
     }).catch(function (err) {
       if (myReq !== LS.req || !LS.open || LS.n !== n) return;
       LS.pending = false; LS.mode = "inactive"; renderLocationShare();
-      showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+      if (!err || !err.handled) showGeoError(err);
     });
   }
   function startProximityWatch(n) {
@@ -4099,6 +4405,12 @@
   // add the time to your total every 5 s (only with a recent location fix and a visible page)
   setInterval(function () {
     var now = Date.now();
+    // Re-publish the latest phone fix every few seconds, even if the browser
+    // does not fire watchPosition because the phone is standing still. This is
+    // what keeps the bus visible in real time on other riders' Live Maps.
+    if (SH.on && SH.bus && SH.pos && now - SH.fix < 90000 && now - SH.lastPub > 7000) {
+      publishSharedLocation(SH.bus, SH.pos);
+    }
     if (SH.on && !document.hidden && now - SH.fix < 90000) {
       store("pust-share-ms", String((+load("pust-share-ms") || 0) + Math.min(now - SH.last, 15000)));
       if (remoteOK() && now - lastStatSync > 30000) { lastStatSync = now; syncRiderStats(); }
@@ -4226,7 +4538,8 @@
      Bus tab: type a bus name (English or Bangla) or its
      number (4, 104, #104) to find it.
      ===================================================== */
-  Object.keys(PLACES).forEach(function (k) { PLACES[k].id = k; });
+  tagPlaces();
+  buildLiveMapRoutes(true);
 
   var HS = { from: "", to: "", q: "", timer: 0 };
 
@@ -4515,5 +4828,5 @@
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1604b8e1f5942',t:'MTc5MDA4MDgwNQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3e21bd1b9825de8',t:'MTc4OTkyMDcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f1604b8e1f5942',t:'MTc5MDA4MDgwNQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fb763c980cf257',t:'MTc5MDE4NjU2Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
