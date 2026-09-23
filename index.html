@@ -2248,13 +2248,13 @@
   };
   var BN_PLACE_NAMES = {
     campus: "পাবনা বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয়",
-    terminal: "পাবনা বাস টার্মিনাল",
+    terminal: "বাইপাস টার্মিনাল",
     mojahid: "মুজাহিদ ক্লাব",
     ananta: "অনন্ত মোড়",
-    court: "কোর্ট",
-    shohor: "পাবনা শহর",
-    collegegate: "কলেজ গেট",
-    maktab: "মক্তব মোড়",
+    court: "জর্জ কোর্ট/কাছারি মোড়",
+    shohor: "ট্রাফিক মোড়",
+    collegegate: "এডওয়ার্ড কলেজ গেট",
+    maktab: "মক্তবপাড়া মোড়",
     gachhpara: "গাছপাড়া",
     meril: "মেরিল বাইপাস",
     tebunia: "টেবুনিয়া",
@@ -2270,11 +2270,48 @@
     ataikula: "আতাইকুলা",
     madhpur: "মাধপুর"
   };
+  // Corrected stop coordinates for the Live Map.
+  // Several older values were rough placeholders; those made Bangla labels appear
+  // in the wrong place. These coordinates are used for route lines + stop labels.
+  var PLACE_COORDS = {
+    campus:      [24.01343, 89.27910],
+    terminal:    [24.00775, 89.25858],
+    mojahid:     [24.00636, 89.24919],
+    ananta:      [23.99917, 89.24547],
+    court:       [24.00050, 89.23242],
+    shohor:      [24.00761, 89.23811],
+    collegegate: [24.01208, 89.23844],
+    maktab:      [24.01617, 89.23469],
+    gachhpara:   [24.03231, 89.22608],
+    meril:       [24.02239, 89.24958],
+    tebunia:     [24.07159, 89.20785],
+    dashuria:    [24.09913, 89.14949],
+    ishwardi:    [24.12274, 89.06434],
+    munsurabad:  [24.00352, 89.26014],
+    hajirhat:    [23.98800, 89.30500],
+    dubalia:     [23.97426, 89.36131],
+    sujanagar:   [23.94222, 89.40716],
+    bagchipara:  [24.02295, 89.29051],
+    pushpapara:  [24.02180, 89.32680],
+    kuchiamora:  [24.02680, 89.37350],
+    ataikula:    [24.03153, 89.41230],
+    madhpur:     [24.03322, 89.44540]
+  };
+  // Show every PUST bus stop label. Coordinates above are used for all labels so
+  // no stop is left out of the Live Map.
+  var LABEL_PLACE_IDS = {
+    campus:1, terminal:1, mojahid:1, ananta:1, court:1, shohor:1, collegegate:1,
+    maktab:1, gachhpara:1, meril:1, tebunia:1, dashuria:1, ishwardi:1,
+    munsurabad:1, hajirhat:1, dubalia:1, sujanagar:1, bagchipara:1,
+    pushpapara:1, kuchiamora:1, ataikula:1, madhpur:1
+  };
+  function shouldShowStopLabel(st) { return !!(st && st.id && LABEL_PLACE_IDS[st.id]); }
   function tagPlaces() {
     Object.keys(PLACES).forEach(function (k) {
       if (!PLACES[k]) return;
       PLACES[k].id = k;
       if (BN_PLACE_NAMES[k]) PLACES[k].bn = BN_PLACE_NAMES[k];
+      if (PLACE_COORDS[k]) PLACES[k].ll = PLACE_COORDS[k].slice();
     });
   }
   function stopsOf(list) {
@@ -2629,7 +2666,7 @@
         .bindPopup(function () { return stopName(r, i); });
       M.drawnStopLabels = M.drawnStopLabels || {};
       var key = st.id || (st.ll[0].toFixed(5) + "," + st.ll[1].toFixed(5));
-      if (!M.drawnStopLabels[key]) {
+      if (shouldShowStopLabel(st) && !M.drawnStopLabels[key]) {
         M.drawnStopLabels[key] = 1;
         L.marker(st.ll, {
           icon: L.divIcon({ className: "stop-label", html: "<span>" + esc(st.bn || st[lang] || st.en || "") + "</span>", iconSize: [1, 1], iconAnchor: [0, 0] }),
@@ -4915,5 +4952,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fb94a979be0645',t:'MTc5MDE4NzgwOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
