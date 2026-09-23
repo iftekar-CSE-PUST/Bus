@@ -3329,10 +3329,13 @@
   var IC_FLAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M5 21V4M5 5h12l-2 4 2 4H5"/></svg>';
 
   function jget(k, fallback) { try { var v = JSON.parse(load(k)); return v == null ? fallback : v; } catch (e) { return fallback; } }
-  function activeCount(n) {   // true live presence only; 0 until the presence channel is up
-    if (!CH.presOn) return 0;
+  function activeCount(n) {
+    // Supabase Presence can take a second to sync. The current tab should still
+    // count as active immediately after a rider opens a bus chat.
     var a = CH.activeAll && CH.activeAll[n];
-    return a ? Object.keys(a).length : 0;
+    var c = a ? Object.keys(a).length : 0;
+    if (CH.open && +CH.n === +n) c = Math.max(c, 1);
+    return c;
   }
   function tripByN(n) { return TRIPS.filter(function (y) { return y.n === n; })[0]; }
   function chatName() {
@@ -3583,12 +3586,32 @@
     presCh.subscribe(function (status) {
       if (status === "SUBSCRIBED" && presCh) {
         presReady = true;
-        presCh.track({ u: chatName(), bus: CH.open ? CH.n : 0 });
+        presenceUpdate();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        presReady = false;
       }
     });
   }
+  function presencePayload() {
+    return { u: chatName(), bus: CH.open ? +CH.n : 0, at: Date.now() };
+  }
+  function paintPresenceNow() {
+    if (CH.open) {
+      $("cActive").textContent = num(activeCount(CH.n));
+      if (!$("chatInfo").hidden) $("ciActive").textContent = I18N[lang].ridersActive.replace("{n}", num(activeCount(CH.n)));
+    }
+    if (CH.listOpen) renderChatList();
+  }
   function presenceUpdate() {
-    if (presReady && presCh) { try { presCh.track({ u: chatName(), bus: CH.open ? CH.n : 0 }); } catch (e) {} }
+    if (!SB || !sbUser) { paintPresenceNow(); return; }
+    subscribePresence();
+    if (presReady && presCh) {
+      try {
+        var p = presCh.track(presencePayload());
+        if (p && typeof p.catch === "function") p.catch(function () {});
+      } catch (e) {}
+    }
+    paintPresenceNow();
   }
   function removePresence() {
     presReady = false;
@@ -3671,6 +3694,8 @@
     renderChatList();
     ensureChatAuth().then(function () {
       if (!CH.listOpen) return;
+      subscribePresence();
+      presenceUpdate();
       renderChatList();                       // reflect the new sign-in state
       if (remoteOK() && !chatRemoteDead()) {
         fetchChatListRemote().then(function () { if (CH.listOpen) renderChatList(); });
@@ -3681,6 +3706,7 @@
   function closeChatList() {
     CH.listOpen = false;
     unsubscribeChatList();
+    presenceUpdate();
     $("chatList").hidden = true;
     lockScroll();
   }
@@ -3756,8 +3782,11 @@
     $("chatRoom").hidden = false;
     lockScroll();
     renderChat(true);                        // show the room immediately
+    presenceUpdate();                        // show this tab as active without waiting for chat fetch
     ensureChatAuth().then(function () {
       if (!CH.open || CH.n !== n) return;
+      subscribePresence();
+      presenceUpdate();
       if (remoteOK() && !chatRemoteDead()) {
         fetchChatRemote(n).then(function (ok) {
           if (!ok) markChatDead();
@@ -3919,6 +3948,11 @@
       if (ts) el.textContent = agoText(ts);
     });
   }, 20000);
+  // Presence heartbeat: keeps the current bus room marked active even if the
+  // phone sleeps briefly or Supabase Presence needs a re-track.
+  setInterval(function () {
+    if (CH.open || CH.listOpen) presenceUpdate();
+  }, 12000);
   window.addEventListener("storage", function (e) {
     if (e.key && e.key.indexOf("pust-chat") !== 0) return;
     if (CH.open) renderChat();
@@ -4976,5 +5010,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbc48bb99fded3',t:'MTc5MDE4OTc2OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbd3f68be45942',t:'MTc5MDE5MDQwMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
