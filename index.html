@@ -413,6 +413,74 @@
   .tgl[aria-checked="true"] { background: #4caf6b; }
   .tgl[aria-checked="true"]::after { transform: translateX(22px); }
 
+  /* ---------- Location sharing gate ---------- */
+  .locscreen {
+    position: fixed; inset: 0; z-index: 30; background: var(--login-bg);
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    animation: fade 0.25s ease;
+  }
+  .lsbar {
+    flex: none; width: 100%; max-width: 440px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 18px 16px 10px;
+  }
+  .lsbar h1 { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 800; letter-spacing: -0.2px; }
+  #locBack { width: 56px; height: 56px; border-radius: 50%; justify-self: start; }
+  #locBack svg { width: 28px; height: 28px; }
+  .lsbody {
+    flex: 1; min-height: 0; width: 100%; max-width: 440px; margin: 0 auto;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 38px 16px calc(126px + env(safe-area-inset-bottom, 0px));
+  }
+  .ls-status { text-align: center; }
+  .ls-icon {
+    width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 24px;
+    display: grid; place-items: center; color: #77797f; background: #f0f0f2;
+  }
+  .ls-icon svg { width: 55px; height: 55px; }
+  .ls-status.outside .ls-icon { color: #f0913a; background: color-mix(in srgb, #f0913a 12%, var(--login-bg)); }
+  .ls-status.active .ls-icon { color: #4caf6b; background: color-mix(in srgb, #4caf6b 14%, var(--login-bg)); }
+  .ls-status.pending .ls-icon svg { animation: spin 0.85s linear infinite; }
+  .ls-status h2 { margin: 0; font-size: 27px; line-height: 1.15; font-weight: 800; letter-spacing: -0.4px; }
+  .ls-status h2 .light { font-weight: 500; }
+  .ls-status p { margin: 22px auto 0; max-width: 392px; font-size: 18px; line-height: 1.45; color: var(--muted); }
+  .ls-how, .ls-info, .ls-alert {
+    margin: 44px auto 0; border-radius: 18px; padding: 20px 18px;
+    text-align: left; background: color-mix(in srgb, var(--text) 5.5%, var(--login-bg));
+  }
+  .ls-how h3 { margin: 0 0 18px; font-size: 20px; font-weight: 800; }
+  .ls-step { display: flex; align-items: center; gap: 18px; margin: 16px 0; color: var(--muted); font-size: 16.5px; line-height: 1.35; }
+  .ls-num { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 800; }
+  .ls-num.n1 { background: #56c45f; } .ls-num.n2 { background: #3b82f6; } .ls-num.n3 { background: #f0913a; }
+  .ls-info { display: flex; align-items: center; gap: 16px; margin-top: 34px; background: color-mix(in srgb, #3b82f6 14%, var(--login-bg)); }
+  .ls-info-ico { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #3b82f6; font-size: 20px; font-weight: 800; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .ls-info p { margin: 0; font-size: 18px; line-height: 1.45; color: var(--text); }
+  .ls-alert { display: flex; align-items: center; gap: 16px; margin-top: 30px; background: color-mix(in srgb, #f0913a 13%, var(--login-bg)); }
+  .ls-alert-ico { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #f0913a; font-size: 22px; font-weight: 900; }
+  .ls-alert b { display: block; margin-bottom: 4px; font-size: 18px; line-height: 1.25; }
+  .ls-alert small { display: block; font-size: 15.5px; line-height: 1.45; color: var(--muted); }
+  .lsbottom {
+    position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+    width: 100%; max-width: 440px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--login-bg) 0%, transparent), var(--login-bg) 38%);
+  }
+  .lsbtn {
+    width: 100%; height: 62px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 14px;
+    background: #61c764; color: #fff; font-size: 20px; font-weight: 800;
+    box-shadow: 0 10px 26px rgba(76, 175, 107, 0.26);
+    transition: transform 0.15s ease, opacity 0.2s ease, background 0.2s ease;
+  }
+  .lsbtn:active { transform: scale(0.98); }
+  .lsbtn[disabled] { opacity: 0.72; }
+  .lsbtn.stop { background: #e5586e; box-shadow: 0 10px 26px rgba(229, 88, 110, 0.22); }
+  .lsbtn svg { width: 28px; height: 28px; flex: none; }
+  @media (max-width: 360px) {
+    .ls-status h2 { font-size: 24px; }
+    .ls-status p, .ls-info p { font-size: 16.5px; }
+    .lsbtn { font-size: 18px; }
+  }
+
   /* ---------- Bus live status ---------- */
   .statusscreen {
     position: fixed; inset: 0; z-index: 25; background: var(--login-bg);
@@ -1082,6 +1150,21 @@
   </div>
 </section>
 
+<!-- Location sharing screen -->
+<section class="locscreen" id="locScreen" hidden aria-label="Location Sharing">
+  <header class="lsbar">
+    <button class="round-btn" id="locBack" type="button" aria-label="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <h1 data-i18n="locTitle">Location Sharing</h1>
+    <span></span>
+  </header>
+  <main class="lsbody" id="locBody"></main>
+  <div class="lsbottom">
+    <button type="button" class="lsbtn" id="locStart"></button>
+  </div>
+</section>
+
 <!-- Live chat: list of buses -->
 <section class="chatlist" id="chatList" hidden aria-label="Live Chat">
   <div class="sbar-wrap">
@@ -1287,7 +1370,7 @@
       g5: "Use Report on messages that break these rules. You can also block a user to hide their messages.",
       g6: "Admins may remove messages and restrict accounts that keep breaking the rules.",
       pv1: "If you sign in with Google or Apple we receive your name and email. Guests get a random anonymous name. Messages you send in a bus chat are visible to other riders.",
-      pv2: "Your location is used only when you tap the locate button on the map, to show where you are. It isn't shared with other riders.",
+      pv2: "Your location is used when you tap the locate button or start Location Sharing. When sharing is on, it helps other riders see the bus position; otherwise it isn't shared.",
       pv3: "You can block users, log out or delete your account from Settings at any time.",
       tm1: "By using this app you agree to follow the Community Guidelines.",
       tm2: "Bus times and locations are shown for guidance only. Buses can run late and information can be inaccurate.",
@@ -1301,6 +1384,13 @@
       lbWait: "Connecting to the live ranking…",
       pts: "{n} pts", ord1: "1st", ord2: "2nd", ord3: "3rd",
       shareTitle: "I'm On This Bus", shareSub: "Share your location to help other riders and earn points",
+      locTitle: "Location Sharing", locInactiveTitle: "Tracking Inactive", locInactiveSub: "Tap the button below to start",
+      locHow: "How it works", locStep1: "Tap the button below to start sharing", locStep2: "Your location updates automatically", locStep3: "Other passengers can see bus position",
+      locStart: "Start Sharing", locChecking: "Checking…", locOutsideTitleA: "Outside", locOutsideTitleB: "the Bus", locOutsideSub: "Will resume automatically when near the bus",
+      locBusNotDetected: "Bus not detected", locBusNotDetectedSub: "It seems you're outside the bus. Details will appear once you board.",
+      locActiveTitle: "Tracking Active", locActiveSub: "Your location is being shared from this bus", locStop: "Stop Sharing",
+      locNext: "Next stop", locRemaining: "remaining", locSpeed: "speed", locProgress: "progress", locPoints: "points earned", locOutsideNote: "outside the bus", locLastUpdate: "last update",
+      locNearToast: "Bus detected — sharing started", locOutsideToast: "You're outside this bus. Sharing will start when you're near it.", locNoBusPos: "Couldn't calculate this bus position yet. Try again in a moment.",
       shareOn: "Sharing your location", shareOff: "Stopped sharing", shareBanner: "Sharing location on {bus}", stopShare: "Stop"
     },
     bn: {
@@ -1382,7 +1472,7 @@
       g5: "নিয়ম ভাঙে এমন মেসেজে রিপোর্ট চাপুন। কারও মেসেজ লুকাতে তাকে ব্লকও করতে পারেন।",
       g6: "যারা বারবার নিয়ম ভাঙে, অ্যাডমিন তাদের মেসেজ মুছে দিতে ও অ্যাকাউন্ট সীমিত করতে পারে।",
       pv1: "গুগল বা অ্যাপল দিয়ে সাইন ইন করলে আমরা আপনার নাম ও ইমেইল পাই। অতিথিরা একটি এলোমেলো বেনামী নাম পায়। বাসের চ্যাটে পাঠানো মেসেজ অন্য যাত্রীরা দেখতে পায়।",
-      pv2: "ম্যাপে অবস্থান বাটনে চাপলেই শুধু আপনার অবস্থান ব্যবহার হয়, আপনাকে ম্যাপে দেখাতে। এটি অন্য যাত্রীদের সাথে শেয়ার হয় না।",
+      pv2: "ম্যাপে লোকেশন বাটনে চাপলে বা লোকেশন শেয়ারিং শুরু করলে আপনার অবস্থান ব্যবহার হয়। শেয়ারিং চালু থাকলে এটি অন্য যাত্রীদের বাসের অবস্থান বুঝতে সাহায্য করে; অন্য সময় শেয়ার হয় না।",
       pv3: "আপনি যেকোনো সময় সেটিংস থেকে ইউজার ব্লক, লগআউট বা অ্যাকাউন্ট মুছে ফেলতে পারেন।",
       tm1: "এই অ্যাপ ব্যবহার করলে আপনি কমিউনিটি নীতিমালা মানতে সম্মত হচ্ছেন।",
       tm2: "বাসের সময় ও অবস্থান শুধু ধারণার জন্য। বাস দেরি করতে পারে এবং তথ্য ভুল হতে পারে।",
@@ -1396,6 +1486,13 @@
       lbWait: "লাইভ র‍্যাংকিং-এর সাথে সংযুক্ত হচ্ছে…",
       pts: "{n} পয়েন্ট", ord1: "১ম", ord2: "২য়", ord3: "৩য়",
       shareTitle: "আমি এই বাসে আছি", shareSub: "লোকেশন শেয়ার করে অন্য যাত্রীদের সাহায্য করুন ও পয়েন্ট পান",
+      locTitle: "লোকেশন শেয়ারিং", locInactiveTitle: "ট্র্যাকিং নিষ্ক্রিয়", locInactiveSub: "শুরু করতে নিচের বাটনে চাপুন",
+      locHow: "কিভাবে কাজ করে", locStep1: "লোকেশন শেয়ার শুরু করতে নিচের বাটনে চাপুন", locStep2: "আপনার অবস্থান স্বয়ংক্রিয়ভাবে আপডেট হবে", locStep3: "অন্য যাত্রীরা বাসের অবস্থান দেখতে পারবে",
+      locStart: "শেয়ার শুরু করুন", locChecking: "চেক করা হচ্ছে…", locOutsideTitleA: "বাসের", locOutsideTitleB: "বাইরে", locOutsideSub: "বাসের কাছে এলে স্বয়ংক্রিয়ভাবে আবার চালু হবে",
+      locBusNotDetected: "বাস শনাক্ত হয়নি", locBusNotDetectedSub: "মনে হচ্ছে আপনি বাসের বাইরে আছেন। বাসে উঠলে বিস্তারিত দেখা যাবে।",
+      locActiveTitle: "ট্র্যাকিং চালু", locActiveSub: "এই বাস থেকে আপনার লোকেশন শেয়ার হচ্ছে", locStop: "শেয়ার বন্ধ করুন",
+      locNext: "পরবর্তী স্টেশন", locRemaining: "অবশিষ্ট", locSpeed: "গতি", locProgress: "অগ্রগতি", locPoints: "পয়েন্ট পেয়েছেন", locOutsideNote: "বাসের বাইরে আছেন", locLastUpdate: "সর্বশেষ আপডেটের সময়",
+      locNearToast: "বাস শনাক্ত হয়েছে — শেয়ারিং শুরু হয়েছে", locOutsideToast: "আপনি এই বাসের বাইরে আছেন। কাছে এলে শেয়ারিং শুরু হবে।", locNoBusPos: "এই বাসের অবস্থান এখনো হিসাব করা যায়নি। একটু পরে চেষ্টা করুন।",
       shareOn: "লোকেশন শেয়ার শুরু হয়েছে", shareOff: "লোকেশন শেয়ার বন্ধ হয়েছে", shareBanner: "{bus}-এ লোকেশন শেয়ার চলছে", stopShare: "বন্ধ করুন"
     }
   };
@@ -2597,7 +2694,7 @@
   var IC_CHAT = FEATURES.filter(function (f) { return f.key === "liveChat"; })[0].svg;
 
   function lockScroll() {
-    document.body.style.overflow = ["mapScreen", "routeScreen", "statusScreen", "chatList", "chatRoom", "settingsScreen", "subScreen", "lbScreen"].some(function (id) { return !$(id).hidden; }) ? "hidden" : "";
+    document.body.style.overflow = ["mapScreen", "routeScreen", "locScreen", "statusScreen", "chatList", "chatRoom", "settingsScreen", "subScreen", "lbScreen"].some(function (id) { return !$(id).hidden; }) ? "hidden" : "";
   }
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
   function fmtTime(ms) {
@@ -3677,6 +3774,7 @@
     if (CH.open) renderChat();
     if (CH.listOpen) renderChatList();
     if (LB.open) renderLeaderboard();
+    if (LS && LS.open) renderLocationShare();
   }
 
   /* ----- actions ----- */
@@ -3753,7 +3851,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     var stack = [["dlg", closeDialog], ["chatInfo", closeChatInfo], ["subScreen", closeSub], ["settingsScreen", closeSettings], ["lbScreen", closeLeaderboard],
-                 ["mapScreen", closeMap], ["chatRoom", closeChat], ["chatList", closeChatList], ["routeScreen", closeRoute], ["statusScreen", closeStatus]];
+                 ["mapScreen", closeMap], ["chatRoom", closeChat], ["chatList", closeChatList], ["locScreen", closeLocationShare], ["routeScreen", closeRoute], ["statusScreen", closeStatus]];
     for (var i = 0; i < stack.length; i++) {
       var el = $(stack[i][0]);
       var shown = !el.hidden && (!el.classList.contains("backdrop") || el.classList.contains("open"));   // sheets: ignore while closing
@@ -3775,8 +3873,13 @@
      has real rows, the Leaderboard screen just shows an empty state.
      ===================================================== */
   var LB = { open: false };
-  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0 };
+  var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0, lat: null, lng: null, acc: null };
+  var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, nearM: 250 };
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
+  var IC_LS_PLANE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.2 3.4 3.2 10.9c-.9.4-.9 1.6.1 1.9l6.2 2.1 2.1 6.2c.3.9 1.6 1 1.9.1l7.5-18c.2-.5-.3-1-.8-.8zM11.3 14.1l-4.5-1.5 10.1-4.2-5.6 5.7zm1.5 3.9-1.5-4.4 5.7-5.7-4.2 10.1z"/></svg>';
+  var IC_LS_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/><path d="M4 4l16 16"/></svg>';
+  var IC_LS_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/><path d="M6 6l12 12"/></svg>';
+  var IC_LS_SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>';
 
   function shareMin() { return (+load("pust-share-ms") || 0) / 60000; }
   function ptsOf(min) {                                  // points_per_hour in app_settings
@@ -3795,42 +3898,198 @@
     if (was) syncRiderStats();
     updateShareUi();
     if (LB.open) renderLeaderboard();
+    if (LS.open) { LS.mode = "inactive"; LS.pending = false; renderLocationShare(); }
+    if (!LS.open) stopProximityWatch();
     if (was && !silent) showToast(I18N[lang].shareOff);
   }
   // Starts by asking for ONE fix (getCurrentPosition) before switching the toggle on, so a denied
   // or blocked request (e.g. the browser's Permissions-Policy blocking geolocation for an embedded
   // page) shows a clear error instead of leaving the switch stuck "on" with no real data behind it.
   // The 12s guard covers browsers/contexts that never call back at all.
-  function startShare(n) {
+  function rememberShareFix(pos) {
+    SH.fix = Date.now();
+    if (pos && pos.coords) {
+      SH.lat = pos.coords.latitude;
+      SH.lng = pos.coords.longitude;
+      SH.acc = pos.coords.accuracy;
+    }
+  }
+  function startShare(n, firstPos) {
     var t = I18N[lang];
     if (!navigator.geolocation) { showToast(t.locFail); return; }
+    stopProximityWatch();
     stopShare(true);
     SH.bus = n; SH.fix = 0; SH.last = Date.now();
     clearTimeout(SH.guard);
-    SH.guard = setTimeout(function () {
-      if (SH.bus === n && !SH.on) { SH.bus = 0; showToast(t.locTimeout); }
-    }, 12000);
-    navigator.geolocation.getCurrentPosition(function () {
+
+    function activate(pos) {
       if (SH.bus !== n) return;                    // user switched/cancelled while this was pending
       clearTimeout(SH.guard); SH.guard = 0;
-      SH.on = true; SH.fix = Date.now();
-      SH.watch = navigator.geolocation.watchPosition(function () { SH.fix = Date.now(); }, function (err) {
+      SH.on = true;
+      rememberShareFix(pos);
+      SH.watch = navigator.geolocation.watchPosition(function (p) {
+        rememberShareFix(p);
+        if (LS.open && LS.n === n) {
+          LS.lastPos = p;
+          if (LS.mode !== "active") LS.mode = "active";
+          renderLocationShare();
+        }
+      }, function (err) {
         if (err && (err.code === 1 || err.code === 2)) { stopShare(true); showToast(t.locFail); }
       }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
       updateShareUi();
-      showToast(t.shareOn);
+      showToast(LS.open ? t.locNearToast : t.shareOn);
+      if (LS.open) { LS.mode = "active"; LS.pending = false; renderLocationShare(); }
       if (LB.open) renderLeaderboard();
-    }, function (err) {
+    }
+
+    if (firstPos && firstPos.coords) { activate(firstPos); return; }
+
+    SH.guard = setTimeout(function () {
+      if (SH.bus === n && !SH.on) { SH.bus = 0; showToast(t.locTimeout); }
+    }, 12000);
+    navigator.geolocation.getCurrentPosition(activate, function (err) {
       if (SH.bus !== n) return;
       clearTimeout(SH.guard); SH.guard = 0;
       SH.bus = 0;
       showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+      if (LS.open) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); }
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
   }
   function toggleShare(n) {
     if (SH.on && SH.bus === n) { stopShare(); return; }
-    startShare(n);
+    openLocationShare(n);
   }
+
+  function stopProximityWatch() {
+    if (LS.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(LS.watch);
+    LS.watch = null;
+  }
+  function busPointInfo(n, pos) {
+    return loadRoutes().then(function () {
+      var x = tripByN(n) || (R && R.n === n ? R.trip : null);
+      if (!x) return null;
+      var r = routeById(x.route);
+      if (!r || !r.pts || !r.total) return null;
+      var p = Math.max(0.02, Math.min(0.98, tripProgress(x)));
+      var bp = pointAt(r, (x.rev ? 1 - p : p) * r.total);
+      var ll = pos && pos.coords ? [pos.coords.latitude, pos.coords.longitude] : null;
+      var dist = ll ? hav(ll, bp.ll) : Infinity;
+      var accuracy = pos && pos.coords && isFinite(pos.coords.accuracy) ? pos.coords.accuracy : 0;
+      var near = Math.max(LS.nearM, accuracy + 80);
+      return { trip: x, route: r, bus: bp.ll, user: ll, dist: dist, accuracy: accuracy, near: near, inside: dist <= near, at: Date.now() };
+    });
+  }
+  function checkAndStartShare(n, pos) {
+    var myReq = ++LS.req, t = I18N[lang];
+    LS.pending = true; LS.mode = "pending"; LS.lastPos = pos || null; renderLocationShare();
+    var gotPos = pos && pos.coords ? Promise.resolve(pos) : new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject(new Error("geo")); return; }
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 10000, timeout: 11000 });
+    });
+    gotPos.then(function (p) {
+      if (myReq !== LS.req || !LS.open || LS.n !== n) return;
+      LS.lastPos = p;
+      return busPointInfo(n, p).then(function (info) {
+        if (myReq !== LS.req || !LS.open || LS.n !== n) return;
+        if (!info) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); showToast(t.locNoBusPos); return; }
+        LS.lastInfo = info;
+        if (info.inside) {
+          LS.pending = false;
+          startShare(n, p);
+        } else {
+          LS.pending = false; LS.mode = "outside"; renderLocationShare(); showToast(t.locOutsideToast); startProximityWatch(n);
+        }
+      });
+    }).catch(function (err) {
+      if (myReq !== LS.req || !LS.open || LS.n !== n) return;
+      LS.pending = false; LS.mode = "inactive"; renderLocationShare();
+      showToast(err && err.code === 1 ? t.locFail : t.locTimeout);
+    });
+  }
+  function startProximityWatch(n) {
+    if (!navigator.geolocation) return;
+    stopProximityWatch();
+    LS.watch = navigator.geolocation.watchPosition(function (pos) {
+      if (!LS.open || LS.n !== n || SH.on) return;
+      LS.lastPos = pos;
+      busPointInfo(n, pos).then(function (info) {
+        if (!LS.open || LS.n !== n || SH.on || !info) return;
+        LS.lastInfo = info;
+        if (info.inside) startShare(n, pos);
+        else if (LS.mode === "outside") renderLocationShare();
+      });
+    }, function () {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+  }
+  function lsTripDetails(info) {
+    var t = I18N[lang], x = info && info.trip ? info.trip : tripByN(LS.n), r = x ? routeById(x.route) : null;
+    if (!x || !r || !r.pts) return busName(LS.n);
+    var tl = tripRows(x), next = tl.next, focus = tl.rows[next >= 0 ? next : Math.max(0, tl.cur)], now = Date.now();
+    var remM = next >= 0 ? Math.max(0, focus.d - tl.travelled) : 0;
+    var pct = Math.floor(tripProgress(x) * 100);
+    var speed = next >= 0 ? Math.round(x.kmh * (1 + 0.08 * Math.sin(now / 9000 + x.n))) : 0;
+    var last = fmtTime(info && info.at ? info.at : now);
+    if (lang === "bn") {
+      return t.locNext + " → " + stopName(r, focus.si) + ", " + t.locRemaining + " : " + kmText(remM) + t.km + ", " + t.locSpeed + " : " + num(speed) + t.kmh + ", " + t.locProgress + " : " + num(pct) + "%, " + num(ptsOf(shareMin())) + " " + t.locPoints + ", " + t.locOutsideNote + ", " + t.locLastUpdate + ": " + last;
+    }
+    return t.locNext + " → " + stopName(r, focus.si) + ", " + t.locRemaining + ": " + kmText(remM) + " " + t.km + ", " + t.locSpeed + ": " + speed + " " + t.kmh + ", " + t.locProgress + ": " + pct + "%, " + ptsOf(shareMin()) + " " + t.locPoints + ", " + t.locOutsideNote + ", " + t.locLastUpdate + ": " + last;
+  }
+  function renderLocationShare() {
+    if (!LS || !LS.open) return;
+    var t = I18N[lang], mode = SH.on && SH.bus === LS.n ? "active" : LS.mode;
+    var body = $("locBody"), btn = $("locStart");
+    if (!body || !btn) return;
+    var html = "";
+    if (mode === "outside") {
+      html += '<div class="ls-status outside"><div class="ls-icon">' + IC_LS_BLOCK + '</div><h2><strong>' + esc(t.locOutsideTitleA) + '</strong> <span class="light">' + esc(t.locOutsideTitleB) + '</span></h2><p>' + esc(t.locOutsideSub) + '</p></div>';
+      html += '<div class="ls-info"><span class="ls-info-ico">i</span><p>' + esc(lsTripDetails(LS.lastInfo)) + '</p></div>';
+      html += '<div class="ls-alert"><span class="ls-alert-ico">!</span><span><b>' + esc(t.locBusNotDetected) + '</b><small>' + esc(t.locBusNotDetectedSub) + '</small></span></div>';
+      btn.className = "lsbtn"; btn.disabled = false; btn.innerHTML = IC_LS_PLANE + '<span>' + esc(t.locStart) + '</span>';
+    } else if (mode === "active") {
+      html += '<div class="ls-status active"><div class="ls-icon">' + IC_LS_PLANE + '</div><h2>' + esc(t.locActiveTitle) + '</h2><p>' + esc(t.locActiveSub) + '</p></div>';
+      html += '<div class="ls-info"><span class="ls-info-ico">i</span><p>' + esc(lsTripDetails(LS.lastInfo)) + '</p></div>';
+      btn.className = "lsbtn stop"; btn.disabled = false; btn.innerHTML = '<span>' + esc(t.locStop) + '</span>';
+    } else if (mode === "pending") {
+      html += '<div class="ls-status pending"><div class="ls-icon">' + IC_LS_SPIN + '</div><h2>' + esc(t.locChecking) + '</h2><p>' + esc(t.locInactiveSub) + '</p></div>';
+      btn.className = "lsbtn"; btn.disabled = true; btn.innerHTML = IC_LS_SPIN + '<span>' + esc(t.locChecking) + '</span>';
+    } else {
+      html += '<div class="ls-status idle"><div class="ls-icon">' + IC_LS_OFF + '</div><h2>' + esc(t.locInactiveTitle) + '</h2><p>' + esc(t.locInactiveSub) + '</p></div>';
+      html += '<div class="ls-how"><h3>' + esc(t.locHow) + '</h3><div class="ls-step"><span class="ls-num n1">1</span><span>' + esc(t.locStep1) + '</span></div><div class="ls-step"><span class="ls-num n2">2</span><span>' + esc(t.locStep2) + '</span></div><div class="ls-step"><span class="ls-num n3">3</span><span>' + esc(t.locStep3) + '</span></div></div>';
+      btn.className = "lsbtn"; btn.disabled = false; btn.innerHTML = IC_LS_PLANE + '<span>' + esc(t.locStart) + '</span>';
+    }
+    body.innerHTML = html;
+  }
+  function openLocationShare(n) {
+    LS.open = true; LS.n = n; LS.mode = SH.on && SH.bus === n ? "active" : "inactive"; LS.pending = false; LS.lastInfo = null;
+    $("locScreen").hidden = false;
+    lockScroll();
+    renderLocationShare();
+    clearInterval(LS.timer);
+    LS.timer = setInterval(function () {
+      if (!LS.open) return;
+      if (LS.mode === "outside" && LS.lastPos) {
+        busPointInfo(LS.n, LS.lastPos).then(function (info) {
+          if (!LS.open || SH.on) return;
+          LS.lastInfo = info;
+          if (info && info.inside) startShare(LS.n, LS.lastPos); else renderLocationShare();
+        });
+      } else renderLocationShare();
+    }, 5000);
+  }
+  function closeLocationShare() {
+    LS.open = false; LS.pending = false; ++LS.req;
+    clearInterval(LS.timer); LS.timer = 0;
+    if (!SH.on) stopProximityWatch();
+    $("locScreen").hidden = true;
+    lockScroll();
+    updateShareUi();
+  }
+  $("locBack").addEventListener("click", closeLocationShare);
+  $("locStart").addEventListener("click", function () {
+    if (!LS.open || LS.pending) return;
+    if (SH.on && SH.bus === LS.n) { stopShare(); LS.mode = "inactive"; renderLocationShare(); return; }
+    checkAndStartShare(LS.n);
+  });
   var lastStatSync = 0;
   function syncRiderStats() {
     if (!remoteOK()) return;
