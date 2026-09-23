@@ -1322,9 +1322,11 @@
       mapError: "Couldn't load the map. Check your internet connection.", retry: "Try again",
       kmh: "km/h", nextStop: "Next stop", atStop: "At stop", locFail: "Couldn't get your location",
       locTimeout: "Couldn't get a location fix. Check that location is allowed for this page, then try again.",
-      locDenied: "Location permission is blocked. Allow Location for this site in your browser/phone settings, then try again.",
+      locDenied: "Location is blocked for this page or browser app. Open the app directly in a normal HTTPS browser tab, then check phone Settings → Apps → your browser → Location = Allow and try again.",
       locNeedSecure: "Phone GPS works only on HTTPS or localhost. Publish/open this app on an HTTPS site, then allow Location.",
-      locPreviewBlocked: "This preview or frame cannot access phone GPS. Open the app in a normal HTTPS browser tab and allow Location.",
+      locPreviewBlocked: "This preview/frame cannot access phone GPS. Open the app directly in a normal HTTPS browser tab and allow Location.",
+      locOpenDirect: "Open Direct Browser",
+      locRetryGps: "Retry GPS",
       locUnavailable: "Location service is unavailable. Turn on GPS/location services and try again.",
       liveShared: "Live from {u}", liveRiders: "{n} riders", gpsFallback: "No shared GPS yet",
       win10: "10 min", win30: "30 min", win60: "1 hour", win360: "6 hours",
@@ -1429,9 +1431,11 @@
       mapError: "ম্যাপ লোড করা যায়নি। ইন্টারনেট সংযোগ দেখুন।", retry: "আবার চেষ্টা করুন",
       kmh: "কিমি/ঘণ্টা", nextStop: "পরবর্তী স্টপ", atStop: "স্টপে", locFail: "আপনার অবস্থান পাওয়া যায়নি",
       locTimeout: "লোকেশন পাওয়া যায়নি। এই পেজের জন্য লোকেশন অনুমতি দেওয়া আছে কিনা দেখে আবার চেষ্টা করুন।",
-      locDenied: "এই সাইটের Location permission blocked আছে। ব্রাউজার/ফোন সেটিংস থেকে Location allow করে আবার চেষ্টা করুন।",
+      locDenied: "এই পেজ বা browser app-এর Location blocked আছে। অ্যাপটি সরাসরি normal HTTPS browser tab-এ খুলুন, তারপর Phone Settings → Apps → আপনার browser → Location = Allow করে আবার চেষ্টা করুন।",
       locNeedSecure: "ফোনের GPS শুধু HTTPS সাইট বা localhost-এ কাজ করে। অ্যাপটি HTTPS সাইটে খুলে Location allow করুন।",
-      locPreviewBlocked: "এই preview/frame থেকে ফোনের GPS নেওয়া যায় না। অ্যাপটি normal HTTPS browser tab-এ খুলে Location allow করুন।",
+      locPreviewBlocked: "এই preview/frame থেকে ফোনের GPS নেওয়া যায় না। অ্যাপটি সরাসরি normal HTTPS browser tab-এ খুলে Location allow করুন।",
+      locOpenDirect: "সরাসরি ব্রাউজারে খুলুন",
+      locRetryGps: "GPS আবার চেষ্টা করুন",
       locUnavailable: "ফোনের Location/GPS service বন্ধ বা unavailable। GPS চালু করে আবার চেষ্টা করুন।",
       liveShared: "{u} থেকে লাইভ", liveRiders: "{n} জন", gpsFallback: "এখনও GPS শেয়ার নেই",
       win10: "১০ মিনিট", win30: "৩০ মিনিট", win60: "১ ঘণ্টা", win360: "৬ ঘণ্টা",
@@ -4202,7 +4206,7 @@
      ===================================================== */
   var LB = { open: false };
   var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0, lat: null, lng: null, acc: null, pos: null, lastPub: 0, lastGeoWarn: 0 };
-  var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, nearM: 250 };
+  var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, lastGeoMsg: "", nearM: 250 };
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
   var IC_LS_PLANE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.2 3.4 3.2 10.9c-.9.4-.9 1.6.1 1.9l6.2 2.1 2.1 6.2c.3.9 1.6 1 1.9.1l7.5-18c.2-.5-.3-1-.8-.8zM11.3 14.1l-4.5-1.5 10.1-4.2-5.6 5.7zm1.5 3.9-1.5-4.4 5.7-5.7-4.2 10.1z"/></svg>';
   var IC_LS_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/><path d="M4 4l16 16"/></svg>';
@@ -4276,6 +4280,20 @@
     return t.locFail;
   }
   function showGeoError(err) { showToast(geoMessage(err)); }
+  function setGeoBlocked(err) {
+    if (!LS.open) return;
+    LS.lastGeoMsg = geoMessage(err);
+    LS.pending = false;
+    LS.mode = "blocked";
+    renderLocationShare();
+  }
+  function openDirectApp() {
+    var url = location.href;
+    try {
+      if (window.top && window.top.location && window.top !== window.self && /^https?:/.test(window.top.location.href)) url = window.top.location.href;
+    } catch (e) {}
+    try { window.open(url, "_blank", "noopener"); } catch (e) { location.href = url; }
+  }
   function geoAvailable() {
     if (!navigator.geolocation) { showToast(I18N[lang].locUnavailable); return false; }
     if (geoNeedsSecureContext()) { showToast(I18N[lang].locNeedSecure); return false; }
@@ -4396,7 +4414,7 @@
       clearTimeout(SH.guard); SH.guard = 0;
       SH.bus = 0;
       if (!err || !err.handled) showGeoError(err);
-      if (LS.open) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); }
+      if (LS.open) setGeoBlocked(err);
     });
   }
   function toggleShare(n) {
@@ -4435,8 +4453,9 @@
       startShare(n, p);       // no fake bus-position gate: student GPS is the live bus position
     }).catch(function (err) {
       if (myReq !== LS.req || !LS.open || LS.n !== n) return;
-      LS.pending = false; LS.mode = "inactive"; renderLocationShare();
+      LS.pending = false;
       if (!err || !err.handled) showGeoError(err);
+      setGeoBlocked(err);
     });
   }
   function startProximityWatch(n) {
@@ -4484,6 +4503,10 @@
     } else if (mode === "pending") {
       html += '<div class="ls-status pending"><div class="ls-icon">' + IC_LS_SPIN + '</div><h2>' + esc(t.locChecking) + '</h2><p>' + esc(t.locInactiveSub) + '</p></div>';
       btn.className = "lsbtn"; btn.disabled = true; btn.innerHTML = IC_LS_SPIN + '<span>' + esc(t.locChecking) + '</span>';
+    } else if (mode === "blocked") {
+      html += '<div class="ls-status outside"><div class="ls-icon">' + IC_LS_BLOCK + '</div><h2>' + esc(t.locBusNotDetected) + '</h2><p>' + esc(LS.lastGeoMsg || t.locDenied) + '</p></div>';
+      html += '<div class="ls-info"><span class="ls-info-ico">i</span><p>' + esc(t.locPreviewBlocked) + '</p></div>';
+      btn.className = "lsbtn"; btn.disabled = false; btn.innerHTML = IC_LS_PLANE + '<span>' + esc(inFrame() ? t.locOpenDirect : t.locRetryGps) + '</span>';
     } else {
       html += '<div class="ls-status idle"><div class="ls-icon">' + IC_LS_OFF + '</div><h2>' + esc(t.locInactiveTitle) + '</h2><p>' + esc(t.locInactiveSub) + '</p></div>';
       html += '<div class="ls-how"><h3>' + esc(t.locHow) + '</h3><div class="ls-step"><span class="ls-num n1">1</span><span>' + esc(t.locStep1) + '</span></div><div class="ls-step"><span class="ls-num n2">2</span><span>' + esc(t.locStep2) + '</span></div><div class="ls-step"><span class="ls-num n3">3</span><span>' + esc(t.locStep3) + '</span></div></div>';
@@ -4519,6 +4542,7 @@
   $("locBack").addEventListener("click", closeLocationShare);
   $("locStart").addEventListener("click", function () {
     if (!LS.open || LS.pending) return;
+    if (LS.mode === "blocked" && inFrame()) { openDirectApp(); return; }
     if (SH.on && SH.bus === LS.n) { stopShare(); LS.mode = "inactive"; renderLocationShare(); return; }
     checkAndStartShare(LS.n);
   });
@@ -4952,5 +4976,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbc48bb99fded3',t:'MTc5MDE4OTc2OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
