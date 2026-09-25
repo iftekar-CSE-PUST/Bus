@@ -2322,8 +2322,33 @@
     if(card.full_name) card.full_name=card.full_name.replace(/\s+/g," ").trim();
     return card;
   }
+  function resolveUniversityQr(url) {
+    clearInterval(scanTimer); scanTimer=null;
+    $("scanStatus").textContent=lang === "bn" ? "বিশ্ববিদ্যালয় থেকে শিক্ষার্থীর তথ্য যাচাই হচ্ছে…" : "Verifying student information with the university…";
+    whenSbReady(function(){
+      if (!SB) { $("scanStatus").textContent=lang === "bn" ? "তথ্য যাচাইয়ের সার্ভারে সংযোগ হয়নি" : "Could not connect to the verification server"; return; }
+      SB.functions.invoke("resolve-student-qr", { body:{ url:url } }).then(function(res){
+        if(res.error || !res.data || !res.data.student) throw res.error || new Error("not_found");
+        var x=res.data.student, card={
+          roll_no:cleanStudentId(x.roll_no || x.roll || x.student_id || ""),
+          full_name:x.full_name || x.name || "",
+          department:x.department || "",
+          academic_session:x.academic_session || x.session || "",
+          blood_group:x.blood_group || "",
+          emergency_phone:String(x.emergency_phone || x.emergency || "").replace(/[^+0-9]/g,"")
+        };
+        if(!validStudentId(card.roll_no) || !card.full_name) throw new Error("invalid_student");
+        finishStudentSignIn(card.roll_no,"pust-qr",card);
+      }).catch(function(){
+        $("scanStatus").textContent=lang === "bn" ? "QR পাওয়া গেছে, কিন্তু বিশ্ববিদ্যালয় থেকে তথ্য আনা যায়নি। Edge Function deploy করা আছে কিনা দেখুন।" : "QR found, but student details could not be retrieved. Check that the Edge Function is deployed.";
+        scanTimer=setInterval(function(){ detectFrame($("scanVideo")); },450);
+      });
+    });
+  }
   function scanValue(v) {
-    var card=parseQrStudent(v);
+    var raw=String(v || "").trim();
+    if (/^https:\/\/idcard\.pust\.ac\.bd\/student-details\/[a-z0-9]+/i.test(raw)) { resolveUniversityQr(raw); return; }
+    var card=parseQrStudent(raw);
     if (validStudentId(card.roll_no) && card.full_name) {
       $("scanStatus").textContent=lang === "bn" ? "QR তথ্য পাওয়া গেছে—সাইন ইন হচ্ছে…" : "QR information found—signing in…";
       finishStudentSignIn(card.roll_no,"qr-scan",card);
@@ -5245,5 +5270,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c03196e5b8dfd',t:'MTc5MDM2MDEwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c1ee1cec3311c',t:'MTc5MDM2MTI0MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
