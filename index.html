@@ -939,9 +939,9 @@
 </div>
 <div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
-  <p class="id-note">Place the QR code or barcode on your student card inside the frame.</p>
+  <p class="id-note">Place the QR code on the back of your Student ID Card inside the frame.</p>
   <div class="scan-box"><video id="scanVideo" playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div></div><p class="scan-status" id="scanStatus">Starting camera…</p>
-  <div class="scan-actions"><button class="scan-secondary" id="captureIdBtn" type="button">Capture & Read</button><label class="scan-secondary">Choose photo<input type="file" id="scanFile" accept="image/jpeg,image/png,image/webp"></label><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div><canvas id="scanCanvas" hidden></canvas></div>
+  <div class="scan-actions"><button class="scan-secondary" id="captureIdBtn" type="button">Read card text</button><label class="scan-secondary">Choose photo<input type="file" id="scanFile" accept="image/jpeg,image/png,image/webp"></label><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div><canvas id="scanCanvas" hidden></canvas></div>
 </div>
 
 <!-- ===================== HOME ===================== -->
@@ -2287,11 +2287,51 @@
     var sm = raw.match(/20\d{2}\s*[-–]\s*20\d{2}/);
     return { roll_no:roll, full_name:name, department:dept, academic_session:sm ? sm[0].replace(/\s/g,"") : sess, blood_group:blood ? blood[0].replace(/\s/g,"").toUpperCase() : "", emergency_phone:emergency };
   }
-  function scanValue(v) {
-    var id = extractStudentId(v);
-    if (id && validStudentId(id)) finishStudentSignIn(id, "card-scan");
-    else $("scanStatus").textContent = lang === "bn" ? "তথ্য পড়া গেছে, কিন্তু স্টুডেন্ট আইডি শনাক্ত হয়নি" : "The card was read, but no Student ID was recognized";
+  function qrValue(obj, keys) {
+    for (var i=0;i<keys.length;i++) {
+      var k=keys[i], val=obj[k];
+      if (val !== undefined && val !== null && String(val).trim()) return String(val).trim();
+    }
+    return "";
   }
+  function parseQrStudent(raw) {
+    var text=String(raw || "").trim(), obj={};
+    try { var j=JSON.parse(text); if(j && typeof j === "object") obj=j.student || j.data || j; } catch(e) {}
+    if (!Object.keys(obj).length) {
+      try {
+        var u=new URL(text), q=u.searchParams;
+        q.forEach(function(v,k){ obj[k.toLowerCase()]=v; });
+        if(!obj.roll && !obj.roll_no && !obj.id) {
+          var pm=u.pathname.match(/(?:student|roll|id)[\/-]?(\d{6})(?:\D|$)/i) || u.pathname.match(/(?:^|\D)(\d{6})(?:\D|$)/);
+          if(pm) obj.roll=pm[1];
+        }
+      } catch(e2) {}
+    }
+    if (!Object.keys(obj).length && /[=:]/.test(text)) {
+      text.split(/[;|\n,&]+/).forEach(function(part){ var m=part.match(/^\s*([^:=]+)\s*[:=]\s*(.*?)\s*$/); if(m)obj[m[1].toLowerCase().replace(/\s+/g,"_")]=m[2]; });
+    }
+    var roll=cleanStudentId(qrValue(obj,["roll_no","roll","student_id","studentid","id","rollno"]) || extractStudentId(text));
+    var card={
+      roll_no:roll,
+      full_name:qrValue(obj,["full_name","fullname","student_name","name"]),
+      department:qrValue(obj,["department","dept","program"]),
+      academic_session:qrValue(obj,["academic_session","session","batch"]),
+      blood_group:qrValue(obj,["blood_group","bloodgroup","blood","bg"]).replace(/\s/g,"").toUpperCase(),
+      emergency_phone:qrValue(obj,["emergency_phone","emergency","phone","mobile","contact"]).replace(/[^+0-9]/g,"")
+    };
+    if(card.full_name) card.full_name=card.full_name.replace(/\s+/g," ").trim();
+    return card;
+  }
+  function scanValue(v) {
+    var card=parseQrStudent(v);
+    if (validStudentId(card.roll_no) && card.full_name) {
+      $("scanStatus").textContent=lang === "bn" ? "QR তথ্য পাওয়া গেছে—সাইন ইন হচ্ছে…" : "QR information found—signing in…";
+      finishStudentSignIn(card.roll_no,"qr-scan",card);
+    } else if (validStudentId(card.roll_no)) {
+      $("scanStatus").textContent=lang === "bn" ? "QR-এ আইডি আছে, কিন্তু নাম নেই" : "The QR contains an ID, but no student name";
+    } else $("scanStatus").textContent = lang === "bn" ? "এই QR কোডে বৈধ শিক্ষার্থী তথ্য পাওয়া যায়নি" : "No valid student information was found in this QR code";
+  }
+
   var OCR_JS = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
   function readCardImage(source) {
     var status = $("scanStatus");
@@ -2329,7 +2369,7 @@
       scanStream = stream; $("scanVideo").srcObject = stream; return $("scanVideo").play();
     }).then(function () {
       if (detector) {
-        $("scanStatus").textContent = lang === "bn" ? "কার্ডের কোডটি ফ্রেমের মধ্যে ধরুন" : "Hold the card code inside the frame";
+        $("scanStatus").textContent = lang === "bn" ? "কার্ডের পেছনের QR কোডটি ফ্রেমের মধ্যে ধরুন" : "Hold the QR code on the back of the card inside the frame";
         scanTimer=setInterval(function(){ detectFrame($("scanVideo")); },450);
       } else {
         $("scanStatus").textContent = lang === "bn" ? "ক্যামেরা চালু আছে—এই ব্রাউজারে অটো স্ক্যান নেই; প্রয়োজনে ম্যানুয়ালি লিখুন" : "Camera is on—automatic scanning is unavailable in this browser; enter the ID manually if needed";
@@ -5220,5 +5260,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40beb42de6341fc',t:'MTc5MDM1OTEyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40bfb4a69a88dfd',t:'MTc5MDM1OTc4NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
