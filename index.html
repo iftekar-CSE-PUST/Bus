@@ -156,7 +156,7 @@
   .scan-line { position:absolute; left:22%; right:22%; top:50%; height:2px; background:#49e477; box-shadow:0 0 8px #49e477; animation:scanline 1.8s ease-in-out infinite alternate; }
   @keyframes scanline { from{transform:translateY(-55px)} to{transform:translateY(55px)} }
   .scan-status { min-height:22px; margin:12px 0 0; text-align:center; color:var(--muted); font-size:14px; }
-  .scan-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .scan-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .scan-actions label { display:grid; place-items:center; }
   .scan-secondary { height:48px; margin-top:12px; border-radius:14px; background:var(--track); font-weight:600; cursor:pointer; }
   .scan-secondary input { display:none; }
@@ -935,13 +935,13 @@
 <div class="id-modal" id="studentModal" hidden role="dialog" aria-modal="true" aria-labelledby="studentTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="studentTitle">Student ID Sign in</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
   <p class="id-note" id="studentNote">Enter the Student ID printed on your university card.</p>
-  <form id="studentForm"><input class="id-input" id="studentIdInput" autocomplete="username" inputmode="text" placeholder="e.g. 22010101001" maxlength="32" required><button class="id-submit" type="submit">Verify & Sign in</button></form></div>
+  <form id="studentForm"><input class="id-input" id="studentIdInput" autocomplete="username" inputmode="numeric" placeholder="e.g. 220101" maxlength="6" minlength="6" pattern="[0-9]{6}" required><button class="id-submit" type="submit">Verify & Sign in</button></form></div>
 </div>
 <div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
   <p class="id-note">Place the QR code or barcode on your student card inside the frame.</p>
   <div class="scan-box"><video id="scanVideo" playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div></div><p class="scan-status" id="scanStatus">Starting camera…</p>
-  <div class="scan-actions"><label class="scan-secondary">Choose photo<input type="file" id="scanFile" accept="image/jpeg,image/png,image/webp"></label><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div></div>
+  <div class="scan-actions"><button class="scan-secondary" id="captureIdBtn" type="button">Capture & Read</button><label class="scan-secondary">Choose photo<input type="file" id="scanFile" accept="image/jpeg,image/png,image/webp"></label><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div><canvas id="scanCanvas" hidden></canvas></div>
 </div>
 
 <!-- ===================== HOME ===================== -->
@@ -2213,7 +2213,7 @@
   /* ---------- Student ID authentication + card scanner ---------- */
   var scanStream = null, scanTimer = null, detector = null;
   function cleanStudentId(v) { return String(v || "").trim().toUpperCase().replace(/\s+/g, ""); }
-  function validStudentId(v) { return /^[A-Z0-9][A-Z0-9\/-]{5,31}$/.test(v); }
+  function validStudentId(v) { return /^\d{6}$/.test(v); }
   function closeIdModals() {
     $("studentModal").hidden = true; $("scanModal").hidden = true;
     clearInterval(scanTimer); scanTimer = null;
@@ -2224,22 +2224,94 @@
     closeIdModals(); $("studentModal").hidden = false;
     $("studentIdInput").value = prefill || ""; setTimeout(function () { $("studentIdInput").focus(); }, 40);
   }
-  function finishStudentSignIn(raw, source) {
+  function saveStudentProfile(data) {
+    if (!SB || !sbUser) return Promise.resolve(false);
+    return SB.from("student_profiles").upsert({
+      user_id: sbUser.id,
+      roll_no: data.roll_no,
+      full_name: data.full_name || ("Student " + data.roll_no),
+      department: data.department || null,
+      academic_session: data.academic_session || null,
+      blood_group: data.blood_group || null,
+      emergency_phone: data.emergency_phone || null,
+      scan_source: data.scan_source || "manual",
+      updated_at: new Date().toISOString()
+    }, { onConflict:"user_id" }).then(function(r) { return !r.error; }).catch(function(){ return false; });
+  }
+  function finishStudentSignIn(raw, source, cardData) {
     var id = cleanStudentId(raw);
-    if (!validStudentId(id)) { showToast(lang === "bn" ? "সঠিক স্টুডেন্ট আইডি দিন" : "Enter a valid Student ID"); return; }
-    var prof = { name: "Student " + id, email: id + "@student.pust.local", studentId: id, picture: "", source: source };
+    if (!validStudentId(id)) { showToast(lang === "bn" ? "সঠিক ৬ সংখ্যার স্টুডেন্ট আইডি দিন" : "Enter a valid 6-digit Student ID"); return; }
+    var data = cardData || {};
+    data.roll_no = id; data.scan_source = source;
+    var displayName = data.full_name || ("Student " + id);
+    var prof = { name: displayName, email: id + "@student.pust.local", studentId: id, picture: "", source: source };
     closeIdModals(); setBusy(true);
     whenSbReady(function () {
       if (!SB) { setBusy(false); enter("student", prof); return; }
-      var saveMeta = function () { return SB.auth.updateUser({ data: { student_id:id, full_name:prof.name, login_source:source } }); };
-      var p = sbUser ? saveMeta() : SB.auth.signInAnonymously().then(function (r) { if (r.error) throw r.error; sbUser = r.data.user; return saveMeta(); });
-      p.then(function () { setBusy(false); enter("student", prof); }).catch(function () { setBusy(false); enter("student", prof); showToast(I18N[lang].guestOffline); });
+      var meta = { student_id:id, full_name:displayName, department:data.department || "", academic_session:data.academic_session || "", blood_group:data.blood_group || "", emergency_phone:data.emergency_phone || "", login_source:source };
+      var saveMeta = function () { return SB.auth.updateUser({ data: meta }); };
+      var authP = sbUser ? Promise.resolve() : SB.auth.signInAnonymously().then(function (r) { if (r.error) throw r.error; sbUser = r.data.user; });
+      authP.then(saveMeta).then(function(){ return saveStudentProfile(data); }).then(function(saved) {
+        setBusy(false); enter("student", prof);
+        if (!saved) showToast(lang === "bn" ? "সাইন ইন হয়েছে; Supabase table setup করা প্রয়োজন" : "Signed in; Supabase table setup is required");
+      }).catch(function () { setBusy(false); enter("student", prof); showToast(I18N[lang].guestOffline); });
     });
   }
+
+  function extractStudentId(text) {
+    text = String(text || "").toUpperCase().replace(/[|]/g, "I");
+    var labelled = text.match(/(?:STUDENT\s*(?:ID|NO)|ID\s*(?:NO|NUMBER)?|ROLL)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\/-]{5,24})/i);
+    if (labelled) return cleanStudentId(labelled[1]);
+    var nums = text.match(/(?:^|\D)(\d{6})(?!\d)/g);
+    if (nums && nums.length) {
+      var six = nums[0].match(/\d{6}/);
+      return six ? six[0] : "";
+    }
+    return "";
+  }
+  function parseStudentCard(text) {
+    var raw = String(text || "").replace(/\r/g, ""), lines = raw.split("\n").map(function(x){return x.trim();}).filter(Boolean);
+    function field(label, nextLabels) {
+      var re = new RegExp("^\\s*(?:" + label + ")\\s*[:#.-]?\\s*(.*)$", "i");
+      for (var i=0;i<lines.length;i++) { var m=lines[i].match(re); if(m && m[1]) return m[1].trim(); }
+      var all=raw.replace(/\n/g," "), stop=nextLabels ? "(?="+nextLabels+"|$)" : "$";
+      var m2=all.match(new RegExp("(?:"+label+")\\s*[:#.-]?\\s*(.*?)\\s*"+stop,"i"));
+      return m2 ? m2[1].trim() : "";
+    }
+    var roll = extractStudentId(raw);
+    var name = field("NAME", "DEPARTMENT|ROLL|SESSION|BLOOD|EMERGENCY").replace(/[^A-Z .'-]/ig, " ").replace(/\s+/g," ").trim();
+    var dept = field("DEPARTMENT", "ROLL|SESSION|BLOOD|EMERGENCY").replace(/\s+/g," ").trim();
+    var sess = field("SESSION", "BLOOD|EMERGENCY");
+    var blood = field("BLOOD\\s*GROUP", "EMERGENCY").match(/(?:A|B|AB|O)\s*[+-]/i);
+    var emergency = field("EMERGENCY", "SIGNATURE").replace(/[^+0-9]/g, "");
+    var sm = raw.match(/20\d{2}\s*[-–]\s*20\d{2}/);
+    return { roll_no:roll, full_name:name, department:dept, academic_session:sm ? sm[0].replace(/\s/g,"") : sess, blood_group:blood ? blood[0].replace(/\s/g,"").toUpperCase() : "", emergency_phone:emergency };
+  }
   function scanValue(v) {
-    var text = String(v || "").trim(), m = text.match(/(?:student(?:_id|id)?[=: ]+)?([A-Z0-9][A-Z0-9\/-]{5,31})/i);
-    if (m && validStudentId(cleanStudentId(m[1]))) finishStudentSignIn(m[1], "card-scan");
-    else $("scanStatus").textContent = lang === "bn" ? "কোড পাওয়া গেছে, কিন্তু সঠিক স্টুডেন্ট আইডি নয়" : "Code found, but it is not a valid Student ID";
+    var id = extractStudentId(v);
+    if (id && validStudentId(id)) finishStudentSignIn(id, "card-scan");
+    else $("scanStatus").textContent = lang === "bn" ? "তথ্য পড়া গেছে, কিন্তু স্টুডেন্ট আইডি শনাক্ত হয়নি" : "The card was read, but no Student ID was recognized";
+  }
+  var OCR_JS = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  function readCardImage(source) {
+    var status = $("scanStatus");
+    status.textContent = lang === "bn" ? "কার্ডের লেখা পড়া হচ্ছে… একটু অপেক্ষা করুন" : "Reading the card… please wait";
+    loadScript(OCR_JS).then(function () {
+      return Tesseract.recognize(source, "eng", { logger:function(m){ if(m.status === "recognizing text") status.textContent = (lang === "bn" ? "কার্ড পড়া হচ্ছে " : "Reading card ") + Math.round((m.progress || 0)*100) + "%"; } });
+    }).then(function (r) {
+      var text = r && r.data ? r.data.text : "", card = parseStudentCard(text);
+      if (card.roll_no && card.full_name) {
+        status.textContent = lang === "bn" ? "তথ্য পাওয়া গেছে—সাইন ইন হচ্ছে…" : "Card information found—signing in…";
+        finishStudentSignIn(card.roll_no, "card-ocr", card);
+      } else if (card.roll_no) {
+        openStudentId(card.roll_no); $("studentNote").textContent = lang === "bn" ? "আইডি পাওয়া গেছে, কিন্তু নাম পড়া যায়নি। আইডি দেখে নিশ্চিত করুন।" : "ID found, but the name could not be read. Check the ID and confirm.";
+      } else status.textContent = lang === "bn" ? "আইডি পাওয়া যায়নি—কার্ড সোজা করে, পরিষ্কার আলোতে আবার তুলুন" : "No ID found—keep the card straight, use good light, and try again";
+    }).catch(function () { status.textContent = lang === "bn" ? "ছবির লেখা পড়া যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন" : "Could not read the card. Check your internet and try again"; });
+  }
+  function captureCard() {
+    var v=$("scanVideo"), c=$("scanCanvas");
+    if (!v.videoWidth) { $("scanStatus").textContent = "Camera is not ready yet"; return; }
+    c.width=v.videoWidth; c.height=v.videoHeight; c.getContext("2d").drawImage(v,0,0,c.width,c.height); readCardImage(c);
   }
   function detectFrame(source) {
     if (!detector) return;
@@ -2268,7 +2340,15 @@
   $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); finishStudentSignIn($("studentIdInput").value, "manual"); });
   document.querySelectorAll("[data-close-id]").forEach(function(b){ b.addEventListener("click", closeIdModals); });
   $("manualIdBtn").addEventListener("click", function(){ openStudentId(); });
-  $("scanFile").addEventListener("change", function(){ var f=this.files&&this.files[0]; if(!f)return; if(!("BarcodeDetector" in window)){ openStudentId(); return; } if(!detector) detector=new BarcodeDetector(); createImageBitmap(f).then(function(img){ return detector.detect(img); }).then(function(c){ if(c&&c[0]) scanValue(c[0].rawValue); else $("scanStatus").textContent="No QR code or barcode found in this photo"; }).catch(function(){ $("scanStatus").textContent="Could not read this photo"; }); });
+  $("captureIdBtn").addEventListener("click", captureCard);
+  $("scanFile").addEventListener("change", function(){
+    var f=this.files&&this.files[0]; if(!f)return;
+    if ("BarcodeDetector" in window) {
+      if(!detector) detector=new BarcodeDetector();
+      createImageBitmap(f).then(function(img){ return detector.detect(img); }).then(function(c){ if(c&&c[0]) scanValue(c[0].rawValue); else readCardImage(f); }).catch(function(){ readCardImage(f); });
+    } else readCardImage(f);
+    this.value="";
+  });
 
   /* ---------- Home events ---------- */
   $("themeBtn").addEventListener("click", function () {
@@ -4196,11 +4276,11 @@
     var name = named ? profile.name : chatName();
     $("stName").textContent = name;
     setAvatar($("stAvatar"), name.charAt(0).toUpperCase());
-    $("stSub").textContent = named ? (profile.email || "") : t.guestSub;
+    $("stSub").textContent = session === "student" ? "" : (named ? (profile.email || "") : t.guestSub);
     var acct = $("stAcct");
     acct.className = "set-row " + (session === "guest" || !session ? "anon" : "ok");
     $("stAcctIco").innerHTML = session === "guest" || !session ? IC_ANON : IC_USEROK;
-    $("stAcctTxt").textContent = session === "google" ? t.accGoogle : session === "apple" ? t.accApple : t.accAnon;
+    $("stAcctTxt").textContent = session === "student" ? t.accStudent : session === "google" ? t.accGoogle : session === "apple" ? t.accApple : t.accAnon;
     $("stLangPill").textContent = t.langOther;
     var pref = themePref();
     document.querySelectorAll("#stTheme button").forEach(function (b) {
@@ -5140,5 +5220,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40bd656796b36c6',t:'MTc5MDM1ODI3MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40beb42de6341fc',t:'MTc5MDM1OTEyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
