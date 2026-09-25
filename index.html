@@ -140,6 +140,26 @@
   .auth-btn svg { width: 22px; height: 22px; flex: none; }
   .btn-google { background: var(--login-bg); color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--text) 22%, transparent); }
   .btn-apple { background: var(--text); color: var(--card); }
+  .id-modal { position:fixed; inset:0; z-index:80; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.48); padding-top:env(safe-area-inset-top,0px); }
+  .id-card { width:100%; max-width:440px; padding:12px 22px calc(24px + env(safe-area-inset-bottom,0px)); border-radius:28px 28px 0 0; background:var(--card); box-shadow:0 -12px 40px rgba(0,0,0,.22); }
+  .id-grab { width:40px; height:5px; margin:0 auto 18px; border-radius:9px; background:var(--track); }
+  .id-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .id-head h2 { margin:0; font-size:22px; }
+  .id-close { width:36px; height:36px; border-radius:50%; background:var(--track); font-size:22px; }
+  .id-note { margin:9px 0 18px; color:var(--muted); line-height:1.45; }
+  .id-input { width:100%; height:54px; padding:0 16px; border:1.5px solid var(--btn-border); border-radius:14px; outline:0; background:var(--bg); font-size:18px; text-transform:uppercase; }
+  .id-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent); }
+  .id-submit { width:100%; height:52px; margin-top:14px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700; }
+  .scan-box { position:relative; overflow:hidden; aspect-ratio:4/3; border-radius:18px; background:#090909; }
+  .scan-box video { width:100%; height:100%; object-fit:cover; }
+  .scan-frame { position:absolute; inset:22%; border:2px solid #fff; border-radius:12px; box-shadow:0 0 0 999px rgba(0,0,0,.35); }
+  .scan-line { position:absolute; left:22%; right:22%; top:50%; height:2px; background:#49e477; box-shadow:0 0 8px #49e477; animation:scanline 1.8s ease-in-out infinite alternate; }
+  @keyframes scanline { from{transform:translateY(-55px)} to{transform:translateY(55px)} }
+  .scan-status { min-height:22px; margin:12px 0 0; text-align:center; color:var(--muted); font-size:14px; }
+  .scan-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .scan-actions label { display:grid; place-items:center; }
+  .scan-secondary { height:48px; margin-top:12px; border-radius:14px; background:var(--track); font-weight:600; cursor:pointer; }
+  .scan-secondary input { display:none; }
   .btn-guest { background: var(--accent); color: #fff; }
   .zero { margin: 14px 8px 0; text-align: center; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 
@@ -890,11 +910,13 @@
       </span>
     </label>
 
-    <button type="button" class="auth-btn btn-google" data-provider="google"><span class="b-label" data-i18n="google">Sign in with Google</span></button>
+    <button type="button" class="auth-btn btn-google" data-provider="student">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="8" cy="11" r="2"/><path d="M5.5 16c.7-1.7 4.3-1.7 5 0M13 10h5M13 14h4"/></svg>
+      <span class="b-label" data-i18n="google">Sign in with Student ID</span></button>
 
-    <button type="button" class="auth-btn btn-apple" data-provider="apple">
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
-      <span class="b-label" data-i18n="apple">Sign in with Apple</span>
+    <button type="button" class="auth-btn btn-apple" data-provider="scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3M7 12h10"/></svg>
+      <span class="b-label" data-i18n="apple">Scan Student ID Card</span>
     </button>
 
     <button type="button" class="auth-btn btn-guest" data-provider="guest">
@@ -909,6 +931,18 @@
     <p class="zero" data-i18n="zero">We have a zero-tolerance policy for objectionable content and abusive users.</p>
   </div>
 </main>
+
+<div class="id-modal" id="studentModal" hidden role="dialog" aria-modal="true" aria-labelledby="studentTitle">
+  <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="studentTitle">Student ID Sign in</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
+  <p class="id-note" id="studentNote">Enter the Student ID printed on your university card.</p>
+  <form id="studentForm"><input class="id-input" id="studentIdInput" autocomplete="username" inputmode="text" placeholder="e.g. 22010101001" maxlength="32" required><button class="id-submit" type="submit">Verify & Sign in</button></form></div>
+</div>
+<div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
+  <p class="id-note">Place the QR code or barcode on your student card inside the frame.</p>
+  <div class="scan-box"><video id="scanVideo" playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div></div><p class="scan-status" id="scanStatus">Starting camera…</p>
+  <div class="scan-actions"><label class="scan-secondary">Choose photo<input type="file" id="scanFile" accept="image/*" capture="environment"></label><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div></div>
+</div>
 
 <!-- ===================== HOME ===================== -->
 <main class="app" id="home" hidden>
@@ -1306,7 +1340,7 @@
       appName: "PUST Bus Tracking", tagline: "Track Buses across Bangladesh",
       agreePre: "I have read and agree to the ", terms: "Terms of Use (EULA)", agreeMid: " and ",
       privacy: "Privacy Policy", agreePost: ".",
-      google: "Sign in with Google", apple: "Sign in with Apple", guest: "Continue without account",
+      google: "Sign in with Student ID", apple: "Scan Student ID Card", guest: "Continue without account",
       zero: "We have a zero-tolerance policy for objectionable content and abusive users.",
       mustAgree: "Please accept the Terms and Privacy Policy first", signingIn: "Signing in…",
       signedInAs: "Signed in as", signOut: "Sign out", close: "Close", guestName: "Guest",
@@ -1369,7 +1403,7 @@
       safety: "Safety", blockedUsers: "Blocked Users", guidelines: "Community Guidelines",
       logout: "Logout", dangerZone: "Danger Zone", deleteAccount: "Delete Account",
       legal: "Legal", privacyPolicy: "Privacy Policy", termsOfService: "Terms of Service", about: "About", version: "Version",
-      accAnon: "Anonymous Account", accGoogle: "Google Account", accApple: "Apple Account",
+      accAnon: "Anonymous Account", accGoogle: "Student ID Account", accApple: "Scanned Student ID", accStudent: "Student Account",
       guestSub: "Anonymous guest account",
       noBlocked: "You haven't blocked anyone.", unblock: "Unblock",
       blockedInfo: "Messages from blocked users are hidden from you in every chat.",
@@ -1413,7 +1447,7 @@
       appName: "পাস্ট বাস ট্র্যাকিং", tagline: "সারা বাংলাদেশে বাস ট্র্যাক করুন",
       agreePre: "আমি ", terms: "ব্যবহারের শর্তাবলী (EULA)", agreeMid: " এবং ",
       privacy: "গোপনীয়তা নীতি", agreePost: " পড়েছি ও সম্মত আছি।",
-      google: "গুগল দিয়ে সাইন ইন করুন", apple: "অ্যাপল দিয়ে সাইন ইন করুন", guest: "অ্যাকাউন্ট ছাড়াই চালিয়ে যান",
+      google: "স্টুডেন্ট আইডি দিয়ে সাইন ইন করুন", apple: "স্টুডেন্ট আইডি কার্ড স্ক্যান করুন", guest: "অ্যাকাউন্ট ছাড়াই চালিয়ে যান",
       zero: "আপত্তিকর কনটেন্ট ও অপব্যবহারকারীদের প্রতি আমাদের জিরো-টলারেন্স নীতি রয়েছে।",
       mustAgree: "আগে শর্তাবলী ও গোপনীয়তা নীতিতে সম্মত হন", signingIn: "সাইন ইন হচ্ছে…",
       signedInAs: "সাইন ইন করা আছে", signOut: "সাইন আউট", close: "বন্ধ করুন", guestName: "অতিথি",
@@ -1476,7 +1510,7 @@
       safety: "নিরাপত্তা", blockedUsers: "ব্লক করা ইউজার", guidelines: "কমিউনিটি নীতিমালা",
       logout: "লগআউট", dangerZone: "বিপজ্জনক অংশ", deleteAccount: "অ্যাকাউন্ট মুছুন",
       legal: "আইনি", privacyPolicy: "গোপনীয়তা নীতি", termsOfService: "সেবার শর্তাবলী", about: "সম্পর্কে", version: "ভার্সন",
-      accAnon: "বেনামী অ্যাকাউন্ট", accGoogle: "গুগল অ্যাকাউন্ট", accApple: "অ্যাপল অ্যাকাউন্ট",
+      accAnon: "বেনামী অ্যাকাউন্ট", accGoogle: "স্টুডেন্ট আইডি অ্যাকাউন্ট", accApple: "স্ক্যান করা স্টুডেন্ট আইডি", accStudent: "স্টুডেন্ট অ্যাকাউন্ট",
       guestSub: "বেনামী অতিথি অ্যাকাউন্ট",
       noBlocked: "আপনি কাউকে ব্লক করেননি।", unblock: "আনব্লক",
       blockedInfo: "ব্লক করা ইউজারের মেসেজ সব চ্যাটে আপনার কাছে লুকানো থাকে।",
@@ -1615,8 +1649,8 @@
     if (key === sbAppliedKey) return;      // token refresh / duplicate event
     sbAppliedKey = key;
     if (sbUser.is_anonymous) {
-      ensureAnonName(sbUser);
-      enter("guest", null);
+      if (md.student_id) enter("student", { name: md.full_name || ("Student " + md.student_id), email: md.student_id + "@student.pust.local", studentId: md.student_id, picture: "" });
+      else { ensureAnonName(sbUser); enter("guest", null); }
     } else {
       var prov = sbUser.app_metadata && sbUser.app_metadata.provider === "apple" ? "apple" : "google";
       enter(prov, {
@@ -2159,6 +2193,8 @@
     if (busy) return;
     if (!agreeBox.checked) { warnAgree(); return; }
     if (kind === "guest") { guestSignIn(btn); return; }
+    if (kind === "student") { openStudentId(); return; }
+    if (kind === "scan") { openScanner(); return; }
     oauthSignIn(kind, btn);
   }
 
@@ -2173,6 +2209,57 @@
       openLegal(key);
     });
   });
+
+  /* ---------- Student ID authentication + card scanner ---------- */
+  var scanStream = null, scanTimer = null, detector = null;
+  function cleanStudentId(v) { return String(v || "").trim().toUpperCase().replace(/\s+/g, ""); }
+  function validStudentId(v) { return /^[A-Z0-9][A-Z0-9\/-]{5,31}$/.test(v); }
+  function closeIdModals() {
+    $("studentModal").hidden = true; $("scanModal").hidden = true;
+    clearInterval(scanTimer); scanTimer = null;
+    if (scanStream) scanStream.getTracks().forEach(function (x) { x.stop(); });
+    scanStream = null; $("scanVideo").srcObject = null;
+  }
+  function openStudentId(prefill) {
+    closeIdModals(); $("studentModal").hidden = false;
+    $("studentIdInput").value = prefill || ""; setTimeout(function () { $("studentIdInput").focus(); }, 40);
+  }
+  function finishStudentSignIn(raw, source) {
+    var id = cleanStudentId(raw);
+    if (!validStudentId(id)) { showToast(lang === "bn" ? "সঠিক স্টুডেন্ট আইডি দিন" : "Enter a valid Student ID"); return; }
+    var prof = { name: "Student " + id, email: id + "@student.pust.local", studentId: id, picture: "", source: source };
+    closeIdModals(); setBusy(true);
+    whenSbReady(function () {
+      if (!SB) { setBusy(false); enter("student", prof); return; }
+      var saveMeta = function () { return SB.auth.updateUser({ data: { student_id:id, full_name:prof.name, login_source:source } }); };
+      var p = sbUser ? saveMeta() : SB.auth.signInAnonymously().then(function (r) { if (r.error) throw r.error; sbUser = r.data.user; return saveMeta(); });
+      p.then(function () { setBusy(false); enter("student", prof); }).catch(function () { setBusy(false); enter("student", prof); showToast(I18N[lang].guestOffline); });
+    });
+  }
+  function scanValue(v) {
+    var text = String(v || "").trim(), m = text.match(/(?:student(?:_id|id)?[=: ]+)?([A-Z0-9][A-Z0-9\/-]{5,31})/i);
+    if (m && validStudentId(cleanStudentId(m[1]))) finishStudentSignIn(m[1], "card-scan");
+    else $("scanStatus").textContent = lang === "bn" ? "কোড পাওয়া গেছে, কিন্তু সঠিক স্টুডেন্ট আইডি নয়" : "Code found, but it is not a valid Student ID";
+  }
+  function detectFrame(source) {
+    if (!detector) return;
+    detector.detect(source).then(function (codes) { if (codes && codes[0]) scanValue(codes[0].rawValue); }).catch(function () {});
+  }
+  function openScanner() {
+    closeIdModals(); $("scanModal").hidden = false; $("scanStatus").textContent = "Starting camera…";
+    if (!("BarcodeDetector" in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $("scanStatus").textContent = lang === "bn" ? "এই ব্রাউজারে লাইভ স্ক্যান নেই—ছবি বাছুন বা ম্যানুয়ালি লিখুন" : "Live scanning is unavailable here—choose a photo or enter the ID manually"; return;
+    }
+    try { detector = new BarcodeDetector({ formats:["qr_code","code_128","code_39","ean_13","data_matrix"] }); } catch(e) { detector = new BarcodeDetector(); }
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } }, audio:false }).then(function (stream) {
+      scanStream = stream; $("scanVideo").srcObject = stream; return $("scanVideo").play();
+    }).then(function () { $("scanStatus").textContent = lang === "bn" ? "কার্ডের কোডটি ফ্রেমের মধ্যে ধরুন" : "Hold the card code inside the frame"; scanTimer=setInterval(function(){ detectFrame($("scanVideo")); },450); })
+      .catch(function () { $("scanStatus").textContent = lang === "bn" ? "ক্যামেরা চালু করা যায়নি—অনুমতি দিন বা ছবি বাছুন" : "Camera could not start—allow permission or choose a photo"; });
+  }
+  $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); finishStudentSignIn($("studentIdInput").value, "manual"); });
+  document.querySelectorAll("[data-close-id]").forEach(function(b){ b.addEventListener("click", closeIdModals); });
+  $("manualIdBtn").addEventListener("click", function(){ openStudentId(); });
+  $("scanFile").addEventListener("change", function(){ var f=this.files&&this.files[0]; if(!f)return; if(!("BarcodeDetector" in window)){ openStudentId(); return; } if(!detector) detector=new BarcodeDetector(); createImageBitmap(f).then(function(img){ return detector.detect(img); }).then(function(c){ if(c&&c[0]) scanValue(c[0].rawValue); else $("scanStatus").textContent="No QR code or barcode found in this photo"; }).catch(function(){ $("scanStatus").textContent="Could not read this photo"; }); });
 
   /* ---------- Home events ---------- */
   $("themeBtn").addEventListener("click", function () {
@@ -5023,7 +5110,7 @@
 
   var savedSession = load("pust-session");
   if (savedSession === "guest") session = "guest";
-  else if ((savedSession === "google" || savedSession === "apple") && profile) session = savedSession;
+  else if ((savedSession === "google" || savedSession === "apple" || savedSession === "student") && profile) session = savedSession;
 
   // Connect to Supabase. If the library can't load (offline / sandboxed preview),
   // the app keeps working exactly like before, saving data on this device only.
