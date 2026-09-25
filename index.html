@@ -939,7 +939,7 @@
 <div class="id-modal" id="studentModal" hidden role="dialog" aria-modal="true" aria-labelledby="studentTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="studentTitle">Student ID Sign in</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
   <p class="id-note" id="studentNote">Enter the Student ID printed on your university card.</p>
-  <form id="studentForm"><label>6-digit Roll / Student ID<input class="id-input" id="studentIdInput" autocomplete="username" inputmode="numeric" placeholder="e.g. 220101" maxlength="6" minlength="6" pattern="[0-9]{6}" required></label><button class="id-submit" type="submit">Sign in</button></form></div>
+  <form id="studentForm"><label>6-digit Roll / Student ID<input class="id-input" id="studentIdInput" autocomplete="username" inputmode="numeric" placeholder="e.g. 220101" maxlength="6" minlength="6" pattern="[0-9]{6}" required></label><label>PIN<input class="id-input" id="studentPinInput" type="password" autocomplete="current-password" inputmode="numeric" placeholder="4–6 digit PIN" minlength="4" maxlength="6" pattern="[0-9]{4,6}" required></label><button class="id-submit" type="submit">Sign in</button></form></div>
 </div>
 <div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
@@ -956,7 +956,9 @@
     <label>Department<input class="id-input" id="confirmDepartment"></label>
     <label>Session<input class="id-input" id="confirmSession"></label>
     <label>Blood Group<input class="id-input" id="confirmBlood" maxlength="3"></label>
-  </div><button class="id-submit" type="submit">Confirm & Login</button></form></div>
+    <label>Create PIN<input class="id-input" id="confirmPin" type="password" inputmode="numeric" minlength="4" maxlength="6" pattern="[0-9]{4,6}" placeholder="4–6 digits" required></label>
+    <label>Confirm PIN<input class="id-input" id="confirmPin2" type="password" inputmode="numeric" minlength="4" maxlength="6" pattern="[0-9]{4,6}" placeholder="Repeat PIN" required></label>
+  </div><button class="id-submit" type="submit">Confirm & Register</button></form></div>
 </div>
 
 <!-- ===================== HOME ===================== -->
@@ -2245,17 +2247,20 @@
     return SB.auth.signInAnonymously().then(function(r){ if(r.error || !r.data || !r.data.user) throw r.error || new Error("auth"); sbUser=r.data.user; return true; });
   }
 
-  function loginExistingStudent(roll) {
-    if(!validStudentId(roll)){ showToast(lang === "bn" ? "সঠিক ৬ সংখ্যার Roll দিন" : "Enter a valid 6-digit Roll"); return; }
+  function loginExistingStudent(roll,pin) {
+    if(!validStudentId(roll) || !/^\d{4,6}$/.test(pin)){ showToast(lang === "bn" ? "সঠিক Roll ও PIN দিন" : "Enter a valid Roll and PIN"); return; }
     closeIdModals(); setBusy(true);
     whenSbReady(function(){
       if(!SB){ setBusy(false); showToast("Supabase connection is required"); return; }
-      ensureAnonymousAccount().then(function(){ return SB.rpc("login_student_by_roll", { p_roll:roll }); }).then(function(r){
-        if(r.error || !r.data || !r.data.length) throw r.error || new Error("not_found");
-        var x=r.data[0], prof={name:x.full_name,email:"",studentId:x.roll_no,picture:"",source:"roll"};
-        return SB.auth.updateUser({data:{student_id:x.roll_no,full_name:x.full_name,login_source:"roll"}}).then(function(){setBusy(false);enter("student",prof);});
-      }).catch(function(){ setBusy(false); showToast(lang === "bn" ? "এই Roll এখনো নিবন্ধিত নয়—আগে কার্ড Scan করুন" : "This Roll is not registered yet—scan the card first"); });
+      ensureAnonymousAccount().then(function(){ return SB.rpc("login_student_profile", {p_roll:roll,p_pin:pin}); }).then(function(r){
+        if(r.error || !r.data || !r.data.length) throw r.error || new Error("invalid");
+        var x=r.data[0], prof={name:x.full_name,email:"",studentId:x.roll_no,picture:"",source:"pin"};
+        return SB.auth.updateUser({data:{student_id:x.roll_no,full_name:x.full_name,login_source:"pin"}}).then(function(){setBusy(false);enter("student",prof);});
+      }).catch(function(){setBusy(false);showToast(lang === "bn"?"Roll অথবা PIN সঠিক নয়":"Incorrect Roll or PIN");openStudentId(roll);});
     });
+  }
+  function registerStudentProfile(data,pin){
+    return ensureAnonymousAccount().then(function(){return SB.rpc("register_student_profile",{p_roll:data.roll_no,p_pin:pin,p_name:data.full_name,p_department:data.department||null,p_session:data.academic_session||null,p_blood:data.blood_group||null});}).then(function(r){if(r.error)throw r.error;return true;});
   }
 
   function saveStudentProfile(data) {
@@ -2421,7 +2426,13 @@
       rc.width=rw; rc.height=rh; rc.getContext("2d").drawImage(canvas,Math.floor(canvas.width*.32),Math.floor(canvas.height*.35),rw,rh,0,0,rw,rh);
       return Tesseract.recognize(rc,"eng",{tessedit_pageseg_mode:"7",tessedit_char_whitelist:"0123456789",logger:function(m){if(m.status==="recognizing text") status.textContent=(lang === "bn"?"Roll শনাক্ত হচ্ছে ":"Detecting Roll ")+Math.round((m.progress||0)*100)+"%";}}).then(function(rr){
         var digits=String(rr && rr.data ? rr.data.text : "").replace(/\D/g,"");
-        var six=digits.match(/\d{6}/); if(six) card.roll_no=six[0]; return card;
+        var six=digits.match(/\d{6}/); if(six) card.roll_no=six[0];
+        var dc=document.createElement("canvas"),dw=Math.floor(canvas.width*.72),dh=Math.floor(canvas.height*.16);
+        dc.width=dw;dc.height=dh;dc.getContext("2d").drawImage(canvas,Math.floor(canvas.width*.27),Math.floor(canvas.height*.27),dw,dh,0,0,dw,dh);
+        return Tesseract.recognize(dc,"eng",{tessedit_pageseg_mode:"7",preserve_interword_spaces:"1",logger:function(m){if(m.status==="recognizing text")status.textContent=(lang === "bn"?"Department শনাক্ত হচ্ছে ":"Detecting Department ")+Math.round((m.progress||0)*100)+"%";}}).then(function(dr){
+          var dt=String(dr&&dr.data?dr.data.text:"").replace(/[^A-Za-z &.-]/g," ").replace(/\s+/g," ").trim().replace(/^(?:Department|Dept)\s*[:.-]?\s*/i,"");
+          if(dt.length>=3) card.department=dt; return card;
+        });
       });
     }).then(function(card){
       $("captureCardBtn").disabled=false;
@@ -2460,16 +2471,18 @@
     })
       .catch(function () { $("scanStatus").textContent = lang === "bn" ? "ক্যামেরা চালু করা যায়নি—ক্যামেরার অনুমতি দিয়ে আবার চেষ্টা করুন" : "Camera could not start—allow camera permission and try again"; });
   }
-  $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); loginExistingStudent(cleanStudentId($("studentIdInput").value)); });
+  $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); loginExistingStudent(cleanStudentId($("studentIdInput").value),$("studentPinInput").value); });
   document.querySelectorAll("[data-close-id]").forEach(function(b){ b.addEventListener("click", closeIdModals); });
   $("manualIdBtn").addEventListener("click", function(){ openStudentId(); });
   $("captureCardBtn").addEventListener("click", captureAndReadCard);
   $("confirmForm").addEventListener("submit", function(e){
     e.preventDefault();
     var card={ roll_no:cleanStudentId($("confirmRoll").value), full_name:$("confirmName").value.trim(), department:$("confirmDepartment").value.trim(), academic_session:$("confirmSession").value.trim(), blood_group:$("confirmBlood").value.replace(/\s/g,"").toUpperCase() };
-    if(!card.full_name || !validStudentId(card.roll_no)){ showToast(lang === "bn" ? "নাম ও সঠিক ৬ সংখ্যার Roll দিন" : "Enter a name and a valid 6-digit Roll"); return; }
-    card.emergency_phone="";
-    finishStudentSignIn(card.roll_no,"card-ocr",card);
+    var pin=$("confirmPin").value,pin2=$("confirmPin2").value;
+    if(!card.full_name || !validStudentId(card.roll_no)){showToast(lang === "bn"?"নাম ও সঠিক ৬ সংখ্যার Roll দিন":"Enter a name and a valid 6-digit Roll");return;}
+    if(!/^\d{4,6}$/.test(pin)||pin!==pin2){showToast(lang === "bn"?"৪–৬ সংখ্যার একই PIN দুইবার দিন":"Enter the same 4–6 digit PIN twice");return;}
+    closeIdModals();setBusy(true);
+    whenSbReady(function(){if(!SB){setBusy(false);showToast("Supabase connection is required");return;} registerStudentProfile(card,pin).then(function(){return SB.auth.updateUser({data:{student_id:card.roll_no,full_name:card.full_name,login_source:"card-ocr"}});}).then(function(){setBusy(false);enter("student",{name:card.full_name,email:"",studentId:card.roll_no,picture:"",source:"card-ocr"});}).catch(function(err){setBusy(false);showToast((err&&/already/i.test(err.message||""))?(lang === "bn"?"এই Roll আগে নিবন্ধিত—Roll ও PIN দিয়ে সাইন ইন করুন":"This Roll is already registered—sign in with Roll and PIN"):(lang === "bn"?"নিবন্ধন করা যায়নি—PIN SQL setup দেখুন":"Registration failed—check the PIN SQL setup"));});});
   });
 
 
@@ -5343,5 +5356,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c5c6b0f27a485',t:'MTc5MDM2Mzc2Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c66d9df12a472',t:'MTc5MDM2NDE4OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
