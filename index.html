@@ -140,8 +140,8 @@
   .auth-btn svg { width: 22px; height: 22px; flex: none; }
   .btn-google { background: var(--login-bg); color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--text) 22%, transparent); }
   .btn-apple { background: var(--text); color: var(--card); }
-  .id-modal { position:fixed; inset:0; z-index:80; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.48); padding-top:env(safe-area-inset-top,0px); }
-  .id-card { width:100%; max-width:440px; padding:12px 22px calc(24px + env(safe-area-inset-bottom,0px)); border-radius:28px 28px 0 0; background:var(--card); box-shadow:0 -12px 40px rgba(0,0,0,.22); }
+  .id-modal { position:fixed; inset:0; z-index:80; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.52); padding:calc(14px + env(safe-area-inset-top,0px)) 12px 0; -webkit-backdrop-filter:blur(5px); backdrop-filter:blur(5px); }
+  .id-card { width:100%; max-width:440px; max-height:calc(100dvh - 18px - env(safe-area-inset-top,0px)); overflow-y:auto; overscroll-behavior:contain; padding:12px 22px calc(24px + env(safe-area-inset-bottom,0px)); border-radius:28px 28px 0 0; background:var(--card); box-shadow:0 -12px 40px rgba(0,0,0,.22); }
   .id-grab { width:40px; height:5px; margin:0 auto 18px; border-radius:9px; background:var(--track); }
   .id-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .id-head h2 { margin:0; font-size:22px; }
@@ -153,7 +153,27 @@
   .card-fields label { display:grid; gap:5px; color:var(--muted); font-size:13px; font-weight:600; }
   .card-fields .id-input { text-transform:none; height:48px; font-size:16px; }
   .card-fields #confirmRoll { text-transform:none; }
-  .id-submit { width:100%; height:52px; margin-top:14px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700; }
+  .id-submit { width:100%; min-height:52px; margin-top:16px; padding:0 18px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700; box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 26%,transparent); }
+  .id-submit:active { transform:scale(.985); }
+  .id-submit:disabled { opacity:.62; cursor:wait; }
+  .student-auth-card { padding:12px 22px calc(26px + env(safe-area-inset-bottom,0px)); }
+  .student-auth-brand { width:64px; height:64px; margin:2px auto 14px; border-radius:20px; display:grid; place-items:center; color:#fff; background:linear-gradient(145deg,#3b82f6,#2563eb); box-shadow:0 10px 24px rgba(37,99,235,.25); }
+  .student-auth-brand svg { width:34px; height:34px; }
+  .student-auth-copy { text-align:center; margin-bottom:20px; }
+  .student-auth-copy h2 { margin:0; font-size:23px; letter-spacing:-.25px; }
+  .student-auth-copy p { margin:7px auto 0; max-width:330px; color:var(--muted); font-size:14.5px; line-height:1.45; }
+  .student-login-form { display:grid; gap:14px; }
+  .student-field { display:grid; gap:7px; color:var(--text); font-size:14px; font-weight:650; }
+  .student-field-wrap { position:relative; }
+  .student-field-wrap > svg { position:absolute; left:15px; top:50%; width:21px; height:21px; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+  .student-field-wrap .id-input { padding-left:48px; padding-right:46px; text-transform:none; font-variant-numeric:tabular-nums; letter-spacing:.3px; }
+  .student-field-wrap .id-input::placeholder { letter-spacing:0; }
+  .pin-toggle { position:absolute; right:7px; top:50%; width:38px; height:38px; transform:translateY(-50%); display:grid; place-items:center; border-radius:10px; color:var(--muted); }
+  .pin-toggle:active { background:var(--track); }
+  .pin-toggle svg { width:20px; height:20px; }
+  .student-help { display:flex; align-items:flex-start; gap:9px; margin:1px 2px 0; color:var(--muted); font-size:12.8px; line-height:1.4; }
+  .student-help svg { width:17px; height:17px; flex:none; margin-top:1px; color:var(--accent); }
+  .student-login-form .id-submit { margin-top:0; }
   .scan-box { position:relative; overflow:hidden; aspect-ratio:4/3; border-radius:18px; background:#090909; }
   .scan-box video { width:100%; height:100%; object-fit:cover; }
   .scan-frame { position:absolute; left:5%; right:5%; top:18%; bottom:18%; border:2px solid #fff; border-radius:12px; box-shadow:0 0 0 999px rgba(0,0,0,.35); }
@@ -164,6 +184,17 @@
   .scan-actions label { display:grid; place-items:center; }
   .scan-secondary { height:48px; margin-top:12px; border-radius:14px; background:var(--track); font-weight:600; cursor:pointer; }
   .scan-secondary input { display:none; }
+  @media (min-width:560px) and (min-height:620px) {
+    .id-modal { align-items:center; padding:24px; }
+    .id-card { border-radius:28px; max-height:calc(100dvh - 48px); padding-bottom:26px; box-shadow:0 22px 70px rgba(0,0,0,.28); }
+    .id-grab { display:none; }
+  }
+  @media (max-height:620px) {
+    .student-auth-brand { width:52px; height:52px; margin-bottom:10px; border-radius:16px; }
+    .student-auth-brand svg { width:28px; height:28px; }
+    .student-auth-copy { margin-bottom:14px; }
+  }
+
   .btn-guest { background: var(--accent); color: #fff; }
   .zero { margin: 14px 8px 0; text-align: center; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 
@@ -937,9 +968,22 @@
 </main>
 
 <div class="id-modal" id="studentModal" hidden role="dialog" aria-modal="true" aria-labelledby="studentTitle">
-  <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="studentTitle">Student ID Sign in</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
-  <p class="id-note" id="studentNote">Enter the Student ID printed on your university card.</p>
-  <form id="studentForm"><label>6-digit Roll / Student ID<input class="id-input" id="studentIdInput" autocomplete="username" inputmode="numeric" placeholder="e.g. 220101" maxlength="6" minlength="6" pattern="[0-9]{6}" required></label><label>PIN<input class="id-input" id="studentPinInput" type="password" autocomplete="current-password" inputmode="numeric" placeholder="4–6 digit PIN" minlength="4" maxlength="6" pattern="[0-9]{4,6}" required></label><button class="id-submit" type="submit">Sign in</button></form></div>
+  <div class="id-card student-auth-card">
+    <div class="id-grab"></div>
+    <div class="id-head" style="justify-content:flex-end"><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
+    <div class="student-auth-brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="10" r="2.2"/><path d="M5.2 16c.8-2 4.8-2 5.6 0M13 9h5M13 13h5M13 17h3"/></svg></div>
+    <div class="student-auth-copy"><h2 id="studentTitle">Student Sign In</h2><p id="studentNote">Use the Roll and PIN created during your first Student ID Card registration.</p></div>
+    <form id="studentForm" class="student-login-form">
+      <label class="student-field">Roll / Student ID
+        <span class="student-field-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h3M7 13h6M15 10h3M15 14h3"/></svg><input class="id-input" id="studentIdInput" autocomplete="username" inputmode="numeric" placeholder="Enter your 6-digit Roll" maxlength="6" minlength="6" pattern="[0-9]{6}" aria-describedby="studentHelp" required></span>
+      </label>
+      <label class="student-field">PIN
+        <span class="student-field-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input class="id-input" id="studentPinInput" type="password" autocomplete="current-password" inputmode="numeric" placeholder="Enter your 4–6 digit PIN" minlength="4" maxlength="6" pattern="[0-9]{4,6}" required><button class="pin-toggle" id="pinToggle" type="button" aria-label="Show PIN"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg></button></span>
+      </label>
+      <div class="student-help" id="studentHelp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Your PIN is encrypted and is never stored as plain text.</span></div>
+      <button class="id-submit" type="submit">Sign In</button>
+    </form>
+  </div>
 </div>
 <div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
@@ -2483,6 +2527,11 @@
   $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); loginExistingStudent(cleanStudentId($("studentIdInput").value),$("studentPinInput").value); });
   document.querySelectorAll("[data-close-id]").forEach(function(b){ b.addEventListener("click", closeIdModals); });
   $("manualIdBtn").addEventListener("click", function(){ openStudentId(); });
+  $("pinToggle").addEventListener("click", function(){
+    var input=$("studentPinInput"), show=input.type === "password"; input.type=show?"text":"password";
+    this.setAttribute("aria-label",show?"Hide PIN":"Show PIN"); input.focus();
+  });
+
   $("captureCardBtn").addEventListener("click", captureAndReadCard);
   $("confirmForm").addEventListener("submit", function(e){
     e.preventDefault();
@@ -5368,5 +5417,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40ca00dfc0c311c',t:'MTc5MDM2NjUzMg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40cb1aed8fd311c',t:'MTc5MDM2NzI1NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
