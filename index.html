@@ -149,6 +149,10 @@
   .id-note { margin:9px 0 18px; color:var(--muted); line-height:1.45; }
   .id-input { width:100%; height:54px; padding:0 16px; border:1.5px solid var(--btn-border); border-radius:14px; outline:0; background:var(--bg); font-size:18px; text-transform:uppercase; }
   .id-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent); }
+  .card-fields { display:grid; gap:10px; max-height:52vh; overflow:auto; padding:2px; }
+  .card-fields label { display:grid; gap:5px; color:var(--muted); font-size:13px; font-weight:600; }
+  .card-fields .id-input { text-transform:none; height:48px; font-size:16px; }
+  .card-fields #confirmRoll { text-transform:none; }
   .id-submit { width:100%; height:52px; margin-top:14px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700; }
   .scan-box { position:relative; overflow:hidden; aspect-ratio:4/3; border-radius:18px; background:#090909; }
   .scan-box video { width:100%; height:100%; object-fit:cover; }
@@ -939,9 +943,21 @@
 </div>
 <div class="id-modal" id="scanModal" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="scanTitle">Scan Student ID Card</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
-  <p class="id-note">Place the QR code on the back of your Student ID Card inside the frame.</p>
+  <p class="id-note">Place the front of your Student ID Card inside the frame, then capture it.</p>
   <div class="scan-box"><video id="scanVideo" playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div></div><p class="scan-status" id="scanStatus">Starting camera…</p>
-  <div class="scan-actions"><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div></div>
+  <div class="scan-actions" style="grid-template-columns:2fr 1fr"><button class="id-submit" id="captureCardBtn" type="button" style="margin-top:12px">Capture & Scan</button><button class="scan-secondary" id="manualIdBtn" type="button">Enter manually</button></div><canvas id="scanCanvas" hidden></canvas></div>
+</div>
+<div class="id-modal" id="confirmModal" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="id-card"><div class="id-grab"></div><div class="id-head"><h2 id="confirmTitle">Confirm card information</h2><button class="id-close" type="button" data-close-id aria-label="Close">×</button></div>
+  <p class="id-note">Check the scanned information before signing in.</p>
+  <form id="confirmForm"><div class="card-fields">
+    <label>Name<input class="id-input" id="confirmName" required></label>
+    <label>Roll / Student ID<input class="id-input" id="confirmRoll" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required></label>
+    <label>Department<input class="id-input" id="confirmDepartment"></label>
+    <label>Session<input class="id-input" id="confirmSession"></label>
+    <label>Blood Group<input class="id-input" id="confirmBlood" maxlength="3"></label>
+    <label>Emergency phone<input class="id-input" id="confirmEmergency" inputmode="tel"></label>
+  </div><button class="id-submit" type="submit">Confirm & Login</button></form></div>
 </div>
 
 <!-- ===================== HOME ===================== -->
@@ -2215,7 +2231,7 @@
   function cleanStudentId(v) { return String(v || "").trim().toUpperCase().replace(/\s+/g, ""); }
   function validStudentId(v) { return /^\d{6}$/.test(v); }
   function closeIdModals() {
-    $("studentModal").hidden = true; $("scanModal").hidden = true;
+    $("studentModal").hidden = true; $("scanModal").hidden = true; $("confirmModal").hidden = true;
     clearInterval(scanTimer); scanTimer = null;
     if (scanStream) scanStream.getTracks().forEach(function (x) { x.stop(); });
     scanStream = null; $("scanVideo").srcObject = null;
@@ -2358,6 +2374,31 @@
   }
 
 
+  var OCR_JS = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  var pendingCard = null;
+  function showCardConfirmation(card) {
+    closeIdModals(); pendingCard=card;
+    $("confirmName").value=card.full_name || ""; $("confirmRoll").value=card.roll_no || "";
+    $("confirmDepartment").value=card.department || ""; $("confirmSession").value=card.academic_session || "";
+    $("confirmBlood").value=card.blood_group || ""; $("confirmEmergency").value=card.emergency_phone || "";
+    $("confirmModal").hidden=false;
+  }
+  function captureAndReadCard() {
+    var video=$("scanVideo"), canvas=$("scanCanvas"), status=$("scanStatus");
+    if(!video.videoWidth){ status.textContent=lang === "bn" ? "ক্যামেরা প্রস্তুত নয়" : "Camera is not ready"; return; }
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height);
+    status.textContent=lang === "bn" ? "OCR প্রস্তুত হচ্ছে…" : "Preparing text recognition…";
+    $("captureCardBtn").disabled=true;
+    loadScript(OCR_JS).then(function(){
+      return Tesseract.recognize(canvas,"eng",{ logger:function(m){ if(m.status==="recognizing text") status.textContent=(lang === "bn" ? "কার্ড পড়া হচ্ছে " : "Reading card ")+Math.round((m.progress||0)*100)+"%"; } });
+    }).then(function(r){
+      $("captureCardBtn").disabled=false;
+      var card=parseStudentCard(r && r.data ? r.data.text : "");
+      if(!card.roll_no && !card.full_name){ status.textContent=lang === "bn" ? "তথ্য পড়া যায়নি—কার্ড সোজা করে ভালো আলোতে আবার চেষ্টা করুন" : "Could not read the card—keep it straight, use good light, and try again"; return; }
+      showCardConfirmation(card);
+    }).catch(function(){ $("captureCardBtn").disabled=false; status.textContent=lang === "bn" ? "OCR লোড হয়নি—ইন্টারনেট সংযোগ দেখুন" : "Text recognition failed—check your internet connection"; });
+  }
   var JSQR_JS = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
   var qrCanvas = document.createElement("canvas"), qrCtx = qrCanvas.getContext("2d", { willReadFrequently:true });
   function detectFrame(source) {
@@ -2382,22 +2423,20 @@
     navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" }, width:{ideal:1280}, height:{ideal:720} }, audio:false }).then(function (stream) {
       scanStream = stream; $("scanVideo").srcObject = stream; return $("scanVideo").play();
     }).then(function () {
-      if (detector) {
-        $("scanStatus").textContent = lang === "bn" ? "কার্ডের পেছনের QR কোডটি ফ্রেমের মধ্যে ধরুন" : "Hold the QR code on the back of the card inside the frame";
-        scanTimer=setInterval(function(){ detectFrame($("scanVideo")); },450);
-      } else {
-        $("scanStatus").textContent = lang === "bn" ? "QR স্ক্যানার প্রস্তুত হচ্ছে…" : "Preparing QR scanner…";
-        loadScript(JSQR_JS).then(function(){
-          $("scanStatus").textContent = lang === "bn" ? "কার্ডের পেছনের QR কোডটি ফ্রেমের মধ্যে ধরুন" : "Hold the QR code on the back of the card inside the frame";
-          scanTimer=setInterval(function(){ detectFrame($("scanVideo")); },350);
-        }).catch(function(){ $("scanStatus").textContent = lang === "bn" ? "QR স্ক্যানার লোড হয়নি—ইন্টারনেট সংযোগ দেখুন" : "QR scanner could not load—check your internet connection"; });
-      }
+      $("scanStatus").textContent = lang === "bn" ? "কার্ডের সামনের অংশ ফ্রেমে রেখে Capture & Scan চাপুন" : "Place the front of the card in the frame, then tap Capture & Scan";
     })
-      .catch(function () { $("scanStatus").textContent = lang === "bn" ? "ক্যামেরা চালু করা যায়নি—অনুমতি দিন বা ছবি বাছুন" : "Camera could not start—allow permission or choose a photo"; });
+      .catch(function () { $("scanStatus").textContent = lang === "bn" ? "ক্যামেরা চালু করা যায়নি—ক্যামেরার অনুমতি দিয়ে আবার চেষ্টা করুন" : "Camera could not start—allow camera permission and try again"; });
   }
   $("studentForm").addEventListener("submit", function(e){ e.preventDefault(); finishStudentSignIn($("studentIdInput").value, "manual"); });
   document.querySelectorAll("[data-close-id]").forEach(function(b){ b.addEventListener("click", closeIdModals); });
   $("manualIdBtn").addEventListener("click", function(){ openStudentId(); });
+  $("captureCardBtn").addEventListener("click", captureAndReadCard);
+  $("confirmForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var card={ roll_no:cleanStudentId($("confirmRoll").value), full_name:$("confirmName").value.trim(), department:$("confirmDepartment").value.trim(), academic_session:$("confirmSession").value.trim(), blood_group:$("confirmBlood").value.replace(/\s/g,"").toUpperCase(), emergency_phone:$("confirmEmergency").value.replace(/[^+0-9]/g,"") };
+    if(!card.full_name || !validStudentId(card.roll_no)){ showToast(lang === "bn" ? "নাম ও সঠিক ৬ সংখ্যার Roll দিন" : "Enter a name and a valid 6-digit Roll"); return; }
+    finishStudentSignIn(card.roll_no,"card-ocr",card);
+  });
 
 
   /* ---------- Home events ---------- */
@@ -5270,5 +5309,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c1ee1cec3311c',t:'MTc5MDM2MTI0MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40c3adc4c929cba',t:'MTc5MDM2MjM4Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
