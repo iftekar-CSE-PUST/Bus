@@ -4808,7 +4808,7 @@
   // page) shows a clear error instead of leaving the switch stuck "on" with no real data behind it.
   // The 12s guard covers browsers/contexts that never call back at all.
   function rememberShareFix(pos) {
-    SH.fix = Date.now();
+    SH.fix = pos && pos.coords ? Date.now() : 0;
     SH.pos = pos || null;
     if (pos && pos.coords) {
       SH.lat = pos.coords.latitude;
@@ -4844,25 +4844,16 @@
           SH.lastGeoWarn = Date.now();
           showGeoError(err);
         }
-      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+      }, { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 });
       updateShareUi();
       showToast(LS.open ? t.locNearToast : t.shareOn);
       if (LS.open) { LS.mode = "active"; LS.pending = false; renderLocationShare(); }
       if (LB.open) renderLeaderboard();
     }
 
-    if (firstPos && firstPos.coords) { activate(firstPos); return; }
-
-    SH.guard = setTimeout(function () {
-      if (SH.bus === n && !SH.on) { SH.bus = 0; showGeoError({ code: 3 }); }
-    }, 32000);
-    requestPhonePosition().then(activate).catch(function (err) {
-      if (SH.bus !== n) return;
-      clearTimeout(SH.guard); SH.guard = 0;
-      SH.bus = 0;
-      if (!err || !err.handled) showGeoError(err);
-      if (LS.open) { LS.pending = false; LS.mode = "inactive"; renderLocationShare(); }
-    });
+    // Turn sharing on immediately. watchPosition requests permission and publishes
+    // the first real GPS fix as soon as the phone provides it—no blocking "Checking…" screen.
+    activate(firstPos && firstPos.coords ? firstPos : null);
   }
   function toggleShare(n) {
     if (SH.on && SH.bus === n) { stopShare(); return; }
@@ -4985,7 +4976,9 @@
   $("locStart").addEventListener("click", function () {
     if (!LS.open || LS.pending) return;
     if (SH.on && SH.bus === LS.n) { stopShare(); LS.mode = "inactive"; renderLocationShare(); return; }
-    checkAndStartShare(LS.n);
+    if (!geoAvailable()) return;
+    LS.pending = false; LS.mode = "active";
+    startShare(LS.n);
   });
   var lastStatSync = 0;
   function syncRiderStats() {
@@ -5417,5 +5410,5 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40cbf6c69a89ec8',t:'MTc5MDM2NzgxNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
