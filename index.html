@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>PUST Bus Tracking</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,6 +10,9 @@
 <style>
   /* ---------- Design tokens ---------- */
   :root {
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -751,6 +754,70 @@
   .cann.open .at { white-space: normal; }
   .cann .post { flex: none; font-size: 16px; font-weight: 600; color: var(--accent); padding: 4px 0 4px 8px; }
 
+    /* In-App floating chat notification banner */
+  .chat-inapp-banner {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 16px;
+    right: 16px;
+    max-width: 440px;
+    margin: 0 auto;
+    background: var(--card);
+    border: 1px solid var(--btn-border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 99999;
+    transform: translateY(-160%);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+    opacity: 0;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .chat-inapp-banner.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  .cib-icon {
+    font-size: 24px;
+    flex: none;
+    line-height: 1;
+  }
+  .cib-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .cib-content b {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cib-content p {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cib-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--muted);
+    padding: 4px 8px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
   .cmsgs { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .cmsgs-in { max-width: 440px; margin: 0 auto; padding: 14px 12px 10px; display: flex; flex-direction: column; gap: 12px; }
   .msg { display: flex; align-items: flex-start; gap: 10px; }
@@ -822,6 +889,9 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes ring { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
 
+  #map, .mapwrap, .mapscreen, .leaflet-container, .leaflet-pane, .leaflet-tile-container, canvas {
+    touch-action: none !important;
+  }
   .mapwrap { position: relative; flex: 1; min-height: 0; }
   #map { position: absolute; inset: 0; z-index: 0; background: var(--track); }
   .locate { position: absolute; z-index: 5; right: 10px; top: 84px; width: 40px; height: 40px; border-radius: 12px; }
@@ -892,6 +962,72 @@
   .bc-speed { text-align: center; flex: none; min-width: 44px; }
   .bc-speed b { display: block; font-size: 22px; font-weight: 700; line-height: 1.1; }
   .bc-speed small { font-size: 11px; color: var(--muted); }
+
+  /* ---------- Walking directions panel (you -> selected bus) ---------- */
+  .dirpanel {
+    position: absolute; z-index: 6; top: 10px; left: 10px;
+    width: calc(100% - 84px); max-width: 380px;
+    background: var(--card); border: 1px solid var(--btn-border); border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); padding: 10px 12px;
+    animation: fade 0.25s ease;
+  }
+  .dir-head { display: flex; align-items: center; gap: 10px; }
+  .dir-ico {
+    flex: none; width: 38px; height: 38px; border-radius: 12px;
+    display: grid; place-items: center; color: #fff; background: var(--accent);
+  }
+  .dir-ico svg { width: 22px; height: 22px; }
+  .dir-txt { flex: 1; min-width: 0; }
+  .dir-txt b { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dir-txt small { display: block; margin-top: 1px; font-size: 13px; font-weight: 600; color: var(--accent); }
+  .dir-txt .dir-first { color: var(--muted); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dir-spin {
+    display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px;
+    border: 2px solid var(--track); border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .dir-toggle, .dir-close {
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--muted); background: var(--track);
+    transition: transform 0.15s ease;
+  }
+  .dir-toggle:active, .dir-close:active { transform: scale(0.92); }
+  .dir-toggle svg { width: 18px; height: 18px; transition: transform 0.2s ease; }
+  .dirpanel.open .dir-toggle svg { transform: rotate(180deg); }
+  .dir-close { font-size: 20px; line-height: 1; }
+  .dir-steps {
+    margin: 8px 2px 2px; padding-left: 20px; max-height: 150px; overflow-y: auto;
+    font-size: 13.5px; line-height: 1.4;
+  }
+  .dir-steps li { padding: 5px 0; }
+  .dir-steps li + li { border-top: 1px solid var(--sep); }
+  .dir-steps small { color: var(--muted); }
+
+  /* ---------- Location prompt on the Live Map ---------- */
+  .maploc {
+    position: absolute; z-index: 7; left: 50%; top: 96px; transform: translateX(-50%);
+    width: calc(100% - 40px); max-width: 320px; text-align: center;
+    background: var(--card); border: 1px solid var(--btn-border); border-radius: 20px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28); padding: 18px 16px 14px;
+    animation: fade 0.25s ease;
+  }
+  .maploc-ico {
+    width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  }
+  .maploc-ico svg { width: 26px; height: 26px; }
+  .maploc b { display: block; font-size: 17px; font-weight: 700; }
+  .maploc p { margin: 6px 0 12px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+  .maploc-x {
+    position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%;
+    color: var(--muted); background: var(--track); font-size: 18px; line-height: 1;
+  }
+  .maploc-do {
+    width: 100%; height: 44px; border-radius: 13px; background: var(--accent); color: #fff;
+    font-size: 15.5px; font-weight: 700; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 26%, transparent);
+  }
+  .maploc-do:active { transform: scale(0.98); }
 
   /* ---------- Toast ---------- */
   .toast {
@@ -1378,6 +1514,30 @@
       <button type="button" class="retry" id="mapRetry" data-i18n="retry" hidden>Try again</button>
     </div>
     <div class="buscards" id="busCards"></div>
+    <!-- Walking directions: from your location to the selected bus -->
+    <div class="dirpanel" id="dirPanel" hidden>
+      <div class="dir-head">
+        <span class="dir-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.4" r="1.7"/><path d="M13.6 8.2 10.8 9.7l-2.7 4.4M13.6 8.2l2.4 2 2.5 1M13.6 8.2l-1 4.3 2.4 2.2 1 5.3M12.5 16.7l-2.2 5.1M8.4 10.6l2-1.3"/></svg>
+        </span>
+        <div class="dir-txt"><b id="dirTitle"></b><small id="dirSub"></small><small class="dir-first" id="dirFirst"></small></div>
+        <button type="button" class="dir-toggle" id="dirToggle" aria-label="Steps">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="dir-close" id="dirClose" aria-label="Close">×</button>
+      </div>
+      <ol class="dir-steps" id="dirSteps" hidden></ol>
+    </div>
+    <!-- Location-off prompt: shown when the map opens and Location is off -->
+    <div class="maploc" id="mapLocPrompt" hidden>
+      <button type="button" class="maploc-x" id="mapLocX" aria-label="Close">×</button>
+      <span class="maploc-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.4-7-11a7 7 0 0 1 14 0c0 5.6-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+      </span>
+      <b id="mapLocTitle"></b>
+      <p id="mapLocMsg"></p>
+      <button type="button" class="maploc-do" id="mapLocDo"></button>
+    </div>
   </div>
 </section>
 
@@ -1415,7 +1575,11 @@
       authLoading: "Loading sign-in… try again in a moment", appleUser: "Apple User",
       liveDemo: "Live GPS", mapLoading: "Loading map…",
       mapError: "Couldn't load the map. Check your internet connection.", retry: "Try again",
+      mapLocMsg: "To see where you are and get walking directions to a bus, turn on your phone's Location/GPS.",
+      mapLocPermMsg: "Location permission is blocked for this site. Allow it from the address bar (lock icon → Permissions → Location → Allow), then tap Try Again.",
       kmh: "km/h", nextStop: "Next stop", atStop: "At stop", locFail: "Couldn't get your location",
+      dirToBus: "To {bus}", dirWalk: "≈ {t} on foot", dirFetching: "Finding your way…",
+      dirHead: "Head {dir}", dirCrow: "straight-line",
       locTimeout: "Couldn't get a location fix. Check that location is allowed for this page, then try again.",
       locDenied: "Location permission is blocked. Allow Location for this site in your browser/phone settings, then try again.",
       locNeedSecure: "Phone GPS works only on HTTPS or localhost. Publish/open this app on an HTTPS site, then allow Location.",
@@ -1499,9 +1663,14 @@
       locHow: "How it works", locStep1: "Tap the button below to start sharing", locStep2: "Your location updates automatically", locStep3: "Other passengers can see bus position",
       locStart: "Start Sharing", locChecking: "Checking…", locOutsideTitleA: "Outside", locOutsideTitleB: "the Bus", locOutsideSub: "Will resume automatically when near the bus",
       locBusNotDetected: "Bus not detected", locBusNotDetectedSub: "It seems you're outside the bus. Details will appear once you board.",
+      locOffTitle: "Turn On Location", locOffSub: "Your phone's Location/GPS is off. Turn it on first, then sharing can start.",
+      locOffHow: "What to do", locOffStep1: "Turn Location/GPS ON in your phone's settings or quick settings", locOffStep2: "Come back to this page", locOffStep3: "Tap Try Again — it also continues automatically once Location is on", locRetry: "Try Again",
+      locPermTitle: "Location Permission Needed", locPermSub: "This site is blocked from using your location.",
+      locPermHow: "How to allow", locPermStep1: "Tap the lock/settings icon in the browser's address bar", locPermStep2: "Permissions → Location → Allow", locPermStep3: "Come back and tap Try Again",
+      locShareLost: "Location was turned off — sharing stopped. Turn it back on to share again.",
       locActiveTitle: "Tracking Active", locActiveSub: "Your location is being shared from this bus", locStop: "Stop Sharing",
       locNext: "Next stop", locRemaining: "remaining", locSpeed: "speed", locProgress: "progress", locPoints: "points earned", locOutsideNote: "outside the bus", locLastUpdate: "last update",
-      locNearToast: "Bus detected — sharing started", locOutsideToast: "You're outside this bus. Sharing will start when you're near it.", locNoBusPos: "Couldn't calculate this bus position yet. Try again in a moment.",
+      locNearToast: "Bus route detected — sharing started", locOutsideToast: "You're away from this bus route. Sharing will start automatically once you're on it.", locNoBusPos: "Couldn't calculate this bus position yet. Try again in a moment.",
       shareOn: "Sharing your location", shareOff: "Stopped sharing", shareBanner: "Sharing location on {bus}", stopShare: "Stop"
     },
     bn: {
@@ -1522,7 +1691,11 @@
       authLoading: "সাইন ইন লোড হচ্ছে… একটু পরে আবার চেষ্টা করুন", appleUser: "অ্যাপল ব্যবহারকারী",
       liveDemo: "লাইভ GPS", mapLoading: "ম্যাপ লোড হচ্ছে…",
       mapError: "ম্যাপ লোড করা যায়নি। ইন্টারনেট সংযোগ দেখুন।", retry: "আবার চেষ্টা করুন",
+      mapLocMsg: "ম্যাপে নিজের অবস্থান দেখতে এবং বাস পর্যন্ত রাস্তা জানতে ফোনের Location/GPS চালু করুন।",
+      mapLocPermMsg: "এই সাইটের লোকেশন পারমিশন ব্লক করা আছে। ঠিকানা বারের লক আইকন → Permissions → Location → Allow করে আবার চেষ্টা করুন চাপুন।",
       kmh: "কিমি/ঘণ্টা", nextStop: "পরবর্তী স্টপ", atStop: "স্টপে", locFail: "আপনার অবস্থান পাওয়া যায়নি",
+      dirToBus: "{bus} পর্যন্ত", dirWalk: "হেঁটে ≈ {t}", dirFetching: "আপনার পথ খোঁজা হচ্ছে…",
+      dirHead: "{dir} দিকে হাঁটুন", dirCrow: "সরাসরি দূরত্ব",
       locTimeout: "লোকেশন পাওয়া যায়নি। এই পেজের জন্য লোকেশন অনুমতি দেওয়া আছে কিনা দেখে আবার চেষ্টা করুন।",
       locDenied: "এই সাইটের Location permission blocked আছে। ব্রাউজার/ফোন সেটিংস থেকে Location allow করে আবার চেষ্টা করুন।",
       locNeedSecure: "ফোনের GPS শুধু HTTPS সাইট বা localhost-এ কাজ করে। অ্যাপটি HTTPS সাইটে খুলে Location allow করুন।",
@@ -1606,9 +1779,14 @@
       locHow: "কিভাবে কাজ করে", locStep1: "লোকেশন শেয়ার শুরু করতে নিচের বাটনে চাপুন", locStep2: "আপনার অবস্থান স্বয়ংক্রিয়ভাবে আপডেট হবে", locStep3: "অন্য যাত্রীরা বাসের অবস্থান দেখতে পারবে",
       locStart: "শেয়ার শুরু করুন", locChecking: "চেক করা হচ্ছে…", locOutsideTitleA: "বাসের", locOutsideTitleB: "বাইরে", locOutsideSub: "বাসের কাছে এলে স্বয়ংক্রিয়ভাবে আবার চালু হবে",
       locBusNotDetected: "বাস শনাক্ত হয়নি", locBusNotDetectedSub: "মনে হচ্ছে আপনি বাসের বাইরে আছেন। বাসে উঠলে বিস্তারিত দেখা যাবে।",
+      locOffTitle: "ফোনের লোকেশন চালু করুন", locOffSub: "আপনার ফোনের Location/GPS বন্ধ আছে। শেয়ারিং শুরু করার আগে এটি চালু করতে হবে।",
+      locOffHow: "যা করতে হবে", locOffStep1: "ফোনের Settings বা উপরের দ্রুত সেটিংস থেকে Location/GPS চালু করুন", locOffStep2: "এই পেজে ফিরে আসুন", locOffStep3: "আবার চেষ্টা করুন চাপুন — লোকেশন চালু হলে আপনা-আপনিও এগিয়ে যাবে", locRetry: "আবার চেষ্টা করুন",
+      locPermTitle: "লোকেশনের অনুমতি দরকার", locPermSub: "এই সাইটের জন্য লোকেশন ব্যবহারের অনুমতি বন্ধ আছে।",
+      locPermHow: "কীভাবে অনুমতি দেবেন", locPermStep1: "ব্রাউজারের ঠিকানা বারের পাশের লক/সেটিংস আইকনে চাপুন", locPermStep2: "Permissions → Location → Allow করুন", locPermStep3: "এই পেজে ফিরে এসে আবার চেষ্টা করুন চাপুন",
+      locShareLost: "লোকেশন বন্ধ করা হয়েছে — শেয়ারিং বন্ধ হয়ে গেছে। আবার শেয়ার করতে লোকেশন চালু করুন।",
       locActiveTitle: "ট্র্যাকিং চালু", locActiveSub: "এই বাস থেকে আপনার লোকেশন শেয়ার হচ্ছে", locStop: "শেয়ার বন্ধ করুন",
       locNext: "পরবর্তী স্টেশন", locRemaining: "অবশিষ্ট", locSpeed: "গতি", locProgress: "অগ্রগতি", locPoints: "পয়েন্ট পেয়েছেন", locOutsideNote: "বাসের বাইরে আছেন", locLastUpdate: "সর্বশেষ আপডেটের সময়",
-      locNearToast: "বাস শনাক্ত হয়েছে — শেয়ারিং শুরু হয়েছে", locOutsideToast: "আপনি এই বাসের বাইরে আছেন। কাছে এলে শেয়ারিং শুরু হবে।", locNoBusPos: "এই বাসের অবস্থান এখনো হিসাব করা যায়নি। একটু পরে চেষ্টা করুন।",
+      locNearToast: "বাসের রুট শনাক্ত হয়েছে — শেয়ারিং শুরু হয়েছে", locOutsideToast: "আপনি এই বাসের রুটের বাইরে আছেন। রুটে পৌঁছালে শেয়ারিং স্বয়ংক্রিয়ভাবে শুরু হবে।", locNoBusPos: "এই বাসের অবস্থান এখনো হিসাব করা যায়নি। একটু পরে চেষ্টা করুন।",
       shareOn: "লোকেশন শেয়ার শুরু হয়েছে", shareOff: "লোকেশন শেয়ার বন্ধ হয়েছে", shareBanner: "{bus}-এ লোকেশন শেয়ার চলছে", stopShare: "বন্ধ করুন"
     }
   };
@@ -1691,6 +1869,8 @@
     subscribeSiteRealtime();
     subscribeStatsRealtime();
     subscribeLiveLocationsRealtime();
+    subscribeChatNotificationsRealtime();
+    syncPushSubscriptions();
     try {
       SB.auth.onAuthStateChange(function (evt, s) { applySbSession(s); });
     } catch (e) {}
@@ -2105,13 +2285,23 @@
     if (!loggedIn) { agreeBox.checked = false; syncLock(); }
     window.scrollTo(0, 0);
     render();
+    if (loggedIn) {
+      try {
+        history.replaceState({ screen: "home" }, "");
+      } catch (e) {}
+    }
   }
 
   function enter(kind, prof) {
     session = kind;
-    profile = prof || null;
+    profile = prof || profile || null;
     store("pust-session", kind);
-    if (profile) store("pust-profile", JSON.stringify(profile)); else unstore("pust-profile");
+    if (profile) {
+      store("pust-profile", JSON.stringify(profile));
+      if (profile.studentId) store("pust-student-id", profile.studentId);
+      if (profile.name) store("pust-anon-name", profile.name);
+    }
+    requestSystemNotificationPermission();
     showScreen();
   }
 
@@ -2783,7 +2973,8 @@
     '<rect x="6.6" y="17.2" width="3" height="3.3" rx="1" fill="#fff"/><rect x="14.4" y="17.2" width="3" height="3.3" rx="1" fill="#fff"/></svg>';
 
   var M = { map: null, tile: null, tileDark: null, ready: false, buses: [], sel: null, follow: false,
-            flying: false, raf: 0, last: 0, lastUi: 0, open: false, me: null, meAcc: null };
+            flying: false, raf: 0, last: 0, lastUi: 0, open: false, me: null, meAcc: null,
+            dirLayer: null, dirTimer: 0, dirBus: null, dirFrom: null, dirFit: false, locWatch: null };
 
   // Live GPS rows from the bus_location_shares table. One signed-in rider writes
   // one row; the map groups fresh rows by bus and uses the freshest/weighted fix.
@@ -3111,7 +3302,7 @@
     });
     M.buses = next;
     M.liveSig = sig;
-    if (M.sel && ids.indexOf(String(M.sel.n)) < 0) { M.sel = null; M.follow = false; }
+    if (M.sel && ids.indexOf(String(M.sel.n)) < 0) { M.sel = null; M.follow = false; clearDirections(); }
     buildCards();
   }
 
@@ -3224,7 +3415,7 @@
   }
 
   function selectBus(b) {
-    if (M.sel === b && M.follow) { M.sel = null; M.follow = false; markSelected(); return; }
+    if (M.sel === b && M.follow) { M.sel = null; M.follow = false; clearDirections(); markSelected(); return; }
     M.sel = b;
     M.follow = true;
     M.flying = true;
@@ -3233,6 +3424,7 @@
     M.map.flyTo(b.marker.getLatLng(), Math.max(M.map.getZoom(), 15), { duration: 0.8 });
     markSelected();
     if (b.el && b.el.card.scrollIntoView) b.el.card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    startDirections(b);   // draw the walking direction from your location to this bus
   }
 
   /* ----- animation loop ----- */
@@ -3263,6 +3455,7 @@
   }
 
   function openMap(preN) {
+    try { history.pushState({ screen: "map" }, ""); } catch(e) {}
     $("mapScreen").hidden = false;
     lockScroll();
     M.open = true;
@@ -3288,6 +3481,7 @@
       setOverlay(null);
       fetchLiveLocations(true);
       if (M.open) startLoop();
+      checkMapLocation();                        // Location off? ask to turn it on; on? show your dot
       if (preN) {
         var pb = M.buses.filter(function (x) { return x.n === preN; })[0];
         if (pb) selectBus(pb);
@@ -3297,9 +3491,12 @@
 
   function closeMap() {
     M.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} }
     if (M.raf) { cancelAnimationFrame(M.raf); M.raf = 0; }
     M.sel = null;
     M.follow = false;
+    clearDirections();
+    hideMapLocPrompt();
     markSelected();
     $("mapScreen").hidden = true;
     lockScroll();
@@ -3310,16 +3507,241 @@
   $("locateBtn").addEventListener("click", function () {
     if (!M.map) return;
     requestPhonePosition().then(function (pos) {
+      if (!pos || !pos.coords || pos.isFallback) { showGeoError({ code: 2 }); return; }   // refuse anything that isn't a real GPS fix
       var ll = [pos.coords.latitude, pos.coords.longitude];
-      if (M.me) M.map.removeLayer(M.me);
-      if (M.meAcc) M.map.removeLayer(M.meAcc);
-      M.meAcc = L.circle(ll, { radius: pos.coords.accuracy, weight: 0, fillColor: "#3b82f6", fillOpacity: 0.12, interactive: false }).addTo(M.map);
-      M.me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#3b82f6", fillOpacity: 1, interactive: false }).addTo(M.map);
+      drawMeMarker(ll, pos.coords.accuracy);
       M.follow = false;
       markSelected();
       M.map.flyTo(ll, Math.max(M.map.getZoom(), 15));
+      if (M.dirBus && !pos.isFallback) { M.dirFrom = ll; refreshDirections(); }   // re-route from the fresh fix
     }).catch(function (err) { if (!err || !err.handled) showGeoError(err); });
   });
+
+  /* =====================================================
+     WALKING DIRECTIONS — from your location to a selected bus
+     -----------------------------------------------------
+     Tap any live bus marker (or its card at the bottom) and the app
+     reads the phone's GPS, then draws the walking way from where YOU
+     are to that bus, and shows how far it is, about how long the walk
+     takes and the step-by-step turns. The route refreshes every 40 s
+     while the bus moves, and disappears when you deselect/close.
+     Routing order: Valhalla (real walking paths) -> OSRM (roads, with
+     walking time instead) -> straight dashed line with a compass
+     heading when neither service can be reached.
+     ===================================================== */
+  function decodePolyline(str, precision) {
+    var factor = Math.pow(10, precision || 5), pts = [], i = 0, lat = 0, lng = 0;
+    while (i < str.length) {
+      var shift = 0, result = 0, b;
+      do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+      pts.push([lat / factor, lng / factor]);
+    }
+    return pts;
+  }
+  var COMPASS = {
+    en: ["North", "North-east", "East", "South-east", "South", "South-west", "West", "North-west"],
+    bn: ["উত্তর", "উত্তর-পূর্ব", "পূর্ব", "দক্ষিণ-পূর্ব", "দক্ষিণ", "দক্ষিণ-পশ্চিম", "পশ্চিম", "উত্তর-পশ্চিম"]
+  };
+  function compassName(deg) {
+    var i = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+    return (COMPASS[lang] || COMPASS.en)[i];
+  }
+  function fmtM(m) { return m < 1000 ? num(Math.round(m)) + " m" : kmText(m) + " " + I18N[lang].km; }
+  function osrmInstruction(st) {
+    var t = st.maneuver || {}, mod = (t.modifier || "").replace(/_/g, " ");
+    var name = st.name ? " onto " + st.name : "";
+    switch (t.type) {
+      case "depart": return "Head " + (mod || "north") + name;
+      case "arrive": return "Arrive at the bus";
+      case "turn": case "end of road": return "Turn " + mod + name;
+      case "fork": return "Keep " + mod + name;
+      case "roundabout": case "rotary": return "Go round the roundabout" + name;
+      case "merge": return "Merge " + mod + name;
+      case "new name": case "continue": return "Continue " + (mod ? mod + " " : "") + name;
+      default: return "Continue" + name;
+    }
+  }
+  // a = [lat,lng] of the user, b = [lat,lng] of the bus -> route along streets
+  function routeWalking(a, b) {
+    function ctlPair(ms) {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, ms);
+      return { signal: ctl ? ctl.signal : undefined, done: function () { clearTimeout(timer); } };
+    }
+    function viaValhalla() {                      // real pedestrian routing (OSM demo server)
+      var c = ctlPair(8000);
+      return fetch("https://valhalla1.openstreetmap.de/route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: c.signal,
+        body: JSON.stringify({
+          locations: [{ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }],
+          costing: "pedestrian", units: "kilometres",
+          directions_options: { language: "en-US" }
+        })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        c.done();
+        if (!j || !j.trip || !j.trip.legs || !j.trip.legs[0]) throw new Error("no trip");
+        var leg = j.trip.legs[0];
+        var steps = (leg.maneuvers || []).map(function (m) {
+          return { t: m.verbal_instruction || m.instruction || "", d: (m.length || 0) * 1000 };
+        }).filter(function (s) { return s.t; });
+        return { pts: decodePolyline(leg.shape, 6), distM: (j.trip.summary.length || 0) * 1000, timeS: j.trip.summary.time || 0, steps: steps };
+      }).catch(function (e) { c.done(); throw e; });
+    }
+    function viaOsrm() {                          // roads via the OSRM demo server, walking time = dist / 5 km/h
+      var c = ctlPair(8000);
+      var coords = a[1] + "," + a[0] + ";" + b[1] + "," + b[0];
+      return fetch("https://router.project-osrm.org/route/v1/driving/" + coords + "?overview=full&geometries=geojson&steps=true",
+                   { signal: c.signal })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          c.done();
+          if (!j.routes || !j.routes[0]) throw new Error("no route");
+          var rt = j.routes[0], steps = [];
+          (rt.legs || []).forEach(function (leg) {
+            (leg.steps || []).forEach(function (st) { steps.push({ t: osrmInstruction(st), d: st.distance || 0 }); });
+          });
+          var dist = rt.distance || 0;
+          return { pts: rt.geometry.coordinates.map(function (p) { return [p[1], p[0]]; }),
+                   distM: dist, timeS: dist / 1.4, steps: steps.filter(function (s) { return s.t; }) };
+        }).catch(function (e) { c.done(); throw e; });
+    }
+    return viaValhalla().catch(viaOsrm).catch(function () {   // last resort: straight dashed line + compass heading
+      var d = hav(a, b);
+      return { pts: [a, b], distM: d, timeS: d / 1.4, straight: bearing(a, b), steps: [] };
+    });
+  }
+  function dirPanelEls() { return { panel: $("dirPanel"), title: $("dirTitle"), sub: $("dirSub"), first: $("dirFirst"), steps: $("dirSteps") }; }
+  function showDirLoading(b) {
+    var t = I18N[lang], el = dirPanelEls();
+    el.panel.hidden = false;
+    el.panel.classList.remove("open");
+    el.title.textContent = t.dirToBus.replace("{bus}", busName(b.n));
+    el.sub.innerHTML = '<span class="dir-spin"></span>' + esc(t.dirFetching);
+    el.first.textContent = "";
+    el.steps.hidden = true;
+    el.steps.innerHTML = "";
+  }
+  function drawMeMarker(ll, accM) {
+    if (M.me) { try { M.map.removeLayer(M.me); } catch (e) {} }
+    if (M.meAcc) { try { M.map.removeLayer(M.meAcc); } catch (e) {} }
+    M.meAcc = L.circle(ll, { radius: accM || 0, weight: 0, fillColor: "#3b82f6", fillOpacity: 0.12, interactive: false }).addTo(M.map);
+    M.me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#3b82f6", fillOpacity: 1, interactive: false }).addTo(M.map);
+  }
+  function drawDirRoute(b, r) {
+    var t = I18N[lang];
+    if (M.dirLayer) { M.map.removeLayer(M.dirLayer); M.dirLayer = null; }
+    M.dirLayer = L.layerGroup([
+      L.polyline(r.pts, { color: "#ffffff", weight: 8, opacity: 0.9, lineCap: "round", lineJoin: "round", interactive: false }),
+      L.polyline(r.pts, { color: "#3b82f6", weight: 4.5, opacity: 1, lineCap: "round", interactive: false, dashArray: "0.5, 9" })
+    ]).addTo(M.map);
+    var el = dirPanelEls();
+    var min = Math.max(1, Math.round(r.timeS / 60));
+    var brg = r.straight != null ? r.straight : bearing(r.pts[0], r.pts[r.pts.length - 1]);
+    var steps = r.steps && r.steps.length ? r.steps : [{ t: t.dirHead.replace("{dir}", compassName(brg)), d: r.distM }];
+    el.title.textContent = t.dirToBus.replace("{bus}", busName(b.n));
+    el.sub.textContent = kmText(r.distM) + " " + t.km + " · " + t.dirWalk.replace("{t}", durText(min)) + (r.straight != null ? " · " + t.dirCrow : "");
+    el.first.textContent = steps[0] ? steps[0].t : "";
+    el.steps.innerHTML = steps.map(function (s) {
+      return "<li><span>" + esc(s.t) + "</span>" + (s.d >= 40 ? ' <small>' + esc(fmtM(s.d)) + "</small>" : "") + "</li>";
+    }).join("");
+    el.panel.hidden = false;
+    if (!M.dirFit) {            // first fix: frame both you and the bus so the whole walk is visible
+      M.dirFit = true;
+      M.follow = false;
+      markSelected();
+      try { M.map.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [18, 120], paddingBottomRight: [18, 220] }); } catch (e) {}
+    }
+  }
+  function refreshDirections() {
+    var b = M.dirBus, me = M.dirFrom;
+    if (!b || !me || !M.open || !b.marker) return;
+    var dest = b.marker.getLatLng();
+    routeWalking(me, [dest.lat, dest.lng]).then(function (r) {
+      if (M.dirBus !== b || !M.open) return;
+      drawDirRoute(b, r);
+    });
+  }
+  function startDirections(b) {
+    clearDirections();
+    if (!b) return;
+    M.dirBus = b;
+    showDirLoading(b);
+    requestPhonePosition(b.n).then(function (pos) {
+      if (M.dirBus !== b || !M.open) return;
+      if (!pos || !pos.coords || pos.isFallback) {          // no real GPS fix -> nothing to route from
+        clearDirections();
+        showToast(I18N[lang].locFail);
+        return;
+      }
+      M.dirFrom = [pos.coords.latitude, pos.coords.longitude];
+      drawMeMarker(M.dirFrom, pos.coords.accuracy);
+      refreshDirections();
+      M.dirTimer = setInterval(refreshDirections, 40000);
+    }).catch(function (err) {              // Location off / blocked -> error, never a fake route
+      if (M.dirBus === b && M.open) { clearDirections(); showGeoError(err); }
+    });
+  }
+  function clearDirections() {
+    if (M.dirTimer) { clearInterval(M.dirTimer); M.dirTimer = 0; }
+    if (M.dirLayer && M.map) { try { M.map.removeLayer(M.dirLayer); } catch (e) {} }
+    M.dirLayer = null; M.dirBus = null; M.dirFrom = null; M.dirFit = false;
+    var p = $("dirPanel"); if (p) p.hidden = true;
+  }
+  $("dirToggle").addEventListener("click", function () {
+    var el = dirPanelEls();
+    if (!el.steps.children.length) return;
+    el.steps.hidden = !el.steps.hidden;
+    el.panel.classList.toggle("open", !el.steps.hidden);
+  });
+  $("dirClose").addEventListener("click", clearDirections);
+
+  /* ----- Location prompt when the Live Map opens -----
+     Entering the map asks for the phone's position once. Location ON ->
+     your real dot appears. Location OFF/blocked -> a "Turn on Location"
+     card shows, a quiet watch waits, and the moment GPS is switched on
+     the card disappears and your real position is drawn. */
+  function hideMapLocPrompt() {
+    var p = $("mapLocPrompt"); if (p) p.hidden = true;
+    if (M.locWatch != null && navigator.geolocation) {
+      try { navigator.geolocation.clearWatch(M.locWatch); } catch (e) {}
+    }
+    M.locWatch = null;
+  }
+  function showMapLocPrompt(denied) {
+    var t = I18N[lang], p = $("mapLocPrompt");
+    if (!p || !M.open) return;
+    $("mapLocTitle").textContent = denied ? t.locPermTitle : t.locOffTitle;
+    $("mapLocMsg").textContent = denied ? t.mapLocPermMsg : t.mapLocMsg;
+    $("mapLocDo").textContent = t.locRetry;
+    p.hidden = false;
+    // wait quietly: GPS turned on -> hide the card and drop your dot
+    if (M.locWatch == null && navigator.geolocation) {
+      M.locWatch = navigator.geolocation.watchPosition(function (pos) {
+        if (!M.open || !M.map || !pos || !pos.coords) return;
+        hideMapLocPrompt();
+        drawMeMarker([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy);
+      }, function () {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
+    }
+  }
+  function checkMapLocation() {
+    hideMapLocPrompt();
+    if (!M.open || !M.map) return;
+    requestPhonePosition().then(function (pos) {
+      if (!M.open || !M.map) return;
+      if (!pos || !pos.coords || pos.isFallback) { showMapLocPrompt(false); return; }
+      drawMeMarker([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy);
+    }).catch(function (err) {
+      if (!M.open || !M.map) return;
+      showMapLocPrompt(!!(err && err.code === 1));      // code 1 = permission blocked
+    });
+  }
+  $("mapLocDo").addEventListener("click", checkMapLocation);
+  $("mapLocX").addEventListener("click", hideMapLocPrompt);
 
   /* =====================================================
      BUS LIVE STATUS  (list of buses with progress)
@@ -3476,6 +3898,7 @@
   }
 
   function openStatus() {
+    try { history.pushState({ screen: "status" }, ""); } catch(e) {}
     S.open = true;
     $("statusScreen").hidden = false;
     lockScroll();
@@ -3488,6 +3911,7 @@
   }
   function closeStatus() {
     S.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} }
     clearInterval(S.timer);
     $("statusScreen").hidden = true;
     lockScroll();
@@ -3637,6 +4061,7 @@
   }
 
   function openRoute(n, trip) {
+    try { history.pushState({ screen: "route" }, ""); } catch(e) {}
     R.open = true; R.n = n; R.fresh = 0; R.first = true; R.trip = trip || null;
     $("routeScreen").hidden = false;
     lockScroll();
@@ -3650,7 +4075,8 @@
     updateShareUi();
   }
   function closeRoute() {
-    R.open = false; R.trip = null;
+    R.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} } R.trip = null;
     clearInterval(R.timer);
     $("routeScreen").hidden = true;
     lockScroll();
@@ -3843,7 +4269,220 @@
 
   /* ----- chat list: live "last message" times while the list is open ----- */
   var listCh = null;
-  function subscribeChatList() {
+        function requestSystemNotificationPermission() {
+    // 1. Native iOS Permission Dialog
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.requestNotificationPermission) {
+      try {
+        window.webkit.messageHandlers.requestNotificationPermission.postMessage({});
+      } catch (e) {}
+    }
+    // 2. Web Browser Notification Permission
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      try {
+        Notification.requestPermission();
+      } catch (e) {}
+    }
+  }
+
+    function playNotificationChime() {
+    try {
+      var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      var ctx = new AudioContextClass();
+      if (ctx.state === "suspended") { ctx.resume(); }
+      var now = ctx.currentTime;
+      var osc1 = ctx.createOscillator();
+      var gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.2, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+
+      var osc2 = ctx.createOscillator();
+      var gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1760, now + 0.08);
+      gain2.gain.setValueAtTime(0.25, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.55);
+    } catch (e) {}
+  }
+
+  function dispatchBusNotification(busNum, senderName, bodyText) {
+    var title = "🚌 " + busName(busNum);
+    var subtitle = senderName || "";
+    var body = bodyText || "";
+
+    // 1. Native iOS Real System Notification (Alert Banner, Sound, Lock Screen)
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sendLocalNotification) {
+      try {
+        window.webkit.messageHandlers.sendLocalNotification.postMessage({
+          title: title,
+          subtitle: subtitle,
+          body: (subtitle ? subtitle + ": " : "") + body,
+          bus: +busNum
+        });
+      } catch (e) {}
+    }
+
+    // 2. Real Web Browser Push/System Notification
+    if (typeof Notification !== "undefined") {
+      if (Notification.permission === "granted") {
+        try {
+          new Notification(title, {
+            body: (subtitle ? subtitle + ": " : "") + body,
+            tag: "pust-bus-" + busNum
+          });
+        } catch (e) {}
+      } else if (Notification.permission === "default") {
+        try {
+          Notification.requestPermission().then(function (p) {
+            if (p === "granted") {
+              new Notification(title, { body: (subtitle ? subtitle + ": " : "") + body });
+            }
+          });
+        } catch (e) {}
+      }
+    }
+  }
+function showInAppChatBanner(n, msg) {
+    var banner = document.getElementById("chatInAppBanner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "chatInAppBanner";
+      banner.className = "chat-inapp-banner";
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = '<div class="cib-icon">🚌</div><div class="cib-content"><b>' + esc(busName(n)) + '</b><p>' + esc((msg.name ? msg.name + ": " : "") + (msg.text || "")) + '</p></div><button type="button" class="cib-close">&times;</button>';
+    banner.onclick = function (e) {
+      if (e.target && e.target.classList.contains("cib-close")) {
+        banner.classList.remove("show");
+        return;
+      }
+      banner.classList.remove("show");
+      openChat(n);
+    };
+    banner.classList.add("show");
+    clearTimeout(banner._timer);
+    banner._timer = setTimeout(function () {
+      banner.classList.remove("show");
+    }, 4500);
+  }
+
+    var chatNotifCh = null;
+  var _seenMsgIds = {};
+  var chatBroadcast = null;
+  try {
+    chatBroadcast = new BroadcastChannel("pust-chat-notifications");
+    chatBroadcast.onmessage = function (ev) {
+      if (!ev || !ev.data) return;
+      handleIncomingChatMessage(+ev.data.bus_n, ev.data.msg);
+    };
+  } catch (e) {}
+
+  window.addEventListener("storage", function (ev) {
+    if (ev.key === "pust-last-chat-event" && ev.newValue) {
+      try {
+        var data = JSON.parse(ev.newValue);
+        if (data && data.bus_n && data.msg) {
+          handleIncomingChatMessage(+data.bus_n, data.msg);
+        }
+      } catch (e) {}
+    }
+  });
+
+  function handleIncomingChatMessage(n, msg) {
+    if (!n || !msg) return;
+    var msgKey = (msg.id || "") + "_" + (msg.ts || "") + "_" + (msg.t || "");
+    if (msgKey && _seenMsgIds[msgKey]) return;
+    if (msgKey) _seenMsgIds[msgKey] = true;
+
+    pushCached(n, msg);
+    if (CH.listOpen) renderChatList();
+
+    // If currently looking at this exact chat room, update chat UI
+    if (CH.open && +CH.n === n) {
+      renderChat(true);
+      return;
+    }
+
+    // If user is subscribed to this bus, dispatch real notification, banner and chime
+    if (isSub(n)) {
+      var sender = msg.u || msg.name || (lang === "bn" ? "যাত্রী" : "Rider");
+      var content = msg.t || msg.text || "";
+      dispatchBusNotification(n, sender, content);
+      showInAppChatBanner(n, { name: sender, text: content });
+      playNotificationChime();
+    }
+  }
+
+  function broadcastChatMessageGlobally(busNum, msgObj) {
+    if (!busNum || !msgObj) return;
+    var msgKey = (msgObj.id || "") + "_" + (msgObj.ts || "") + "_" + (msgObj.t || "");
+    if (msgKey) _seenMsgIds[msgKey] = true;
+
+    // 1. Supabase Realtime Broadcast
+    if (chatNotifCh) {
+      try {
+        chatNotifCh.send({
+          type: "broadcast",
+          event: "chat_msg",
+          payload: { bus_n: busNum, msg: msgObj }
+        });
+      } catch (e) {}
+    }
+
+    // 2. BroadcastChannel API for multi-tab sync
+    if (chatBroadcast) {
+      try {
+        chatBroadcast.postMessage({ bus_n: busNum, msg: msgObj });
+      } catch (e) {}
+    }
+
+    // 3. Storage event for cross-tab sync
+    try {
+      localStorage.setItem("pust-last-chat-event", JSON.stringify({
+        ts: Date.now(),
+        bus_n: busNum,
+        msg: msgObj
+      }));
+    } catch (e) {}
+  }
+
+  function subscribeChatNotificationsRealtime() {
+    if (!SB) return;
+    if (chatNotifCh) {
+      try { SB.removeChannel(chatNotifCh); } catch (e) {}
+      chatNotifCh = null;
+    }
+    chatNotifCh = SB.channel("pust-chat-global-notifs");
+    chatNotifCh
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, function (p) {
+        if (!p || !p.new) return;
+        var n = +p.new.bus_n;
+        var msg = rowToMsg(p.new);
+        handleIncomingChatMessage(n, msg);
+      })
+      .on("broadcast", { event: "chat_msg" }, function (payload) {
+        if (!payload || !payload.payload) return;
+        var d = payload.payload;
+        handleIncomingChatMessage(+d.bus_n, d.msg);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, function (p) {
+        if (!p || !p.old || !p.old.id) return;
+        dropCached(p.old.id);
+        if (CH.listOpen) renderChatList();
+      })
+      .subscribe();
+  }
+function subscribeChatList() {
     unsubscribeChatList();
     if (!remoteOK() || chatRemoteDead()) return;
     listCh = SB.channel("pust-chat-list");
@@ -4068,12 +4707,52 @@
       store("pust-chat-ann:" + n, JSON.stringify(a));
     }
   }
-  function isSub(n) { return jget("pust-chat-subs", []).indexOf(n) >= 0; }
+  function isSub(n) {
+    var l = jget("pust-chat-subs", []);
+    var target = +n;
+    for (var i = 0; i < l.length; i++) {
+      if (+l[i] === target) return true;
+    }
+    return false;
+  }
+    function syncPushSubscriptions() {
+    var token = load("pust-device-push-token") || window.__devicePushToken;
+    if (!token || !SB || !remoteOK()) return;
+    var subs = jget("pust-chat-subs", []).map(function (x) { return +x; });
+    SB.from("device_push_tokens").upsert({
+      token: token,
+      user_id: sbUser ? sbUser.id : null,
+      platform: "ios",
+      subscribed_buses: subs,
+      updated_at: new Date().toISOString()
+    }).then(function () {}).catch(function () {});
+  }
+
+  window.__onDevicePushToken = function (token) {
+    if (!token) return;
+    store("pust-device-push-token", token);
+    syncPushSubscriptions();
+  };
+
   function toggleSub(n) {
-    var l = jget("pust-chat-subs", []), i = l.indexOf(n);
-    if (i >= 0) l.splice(i, 1); else l.push(n);
+    var l = jget("pust-chat-subs", []);
+    var target = +n, idx = -1;
+    for (var i = 0; i < l.length; i++) {
+      if (+l[i] === target) { idx = i; break; }
+    }
+    var nowSubbed = false;
+    if (idx >= 0) {
+      l.splice(idx, 1);
+      nowSubbed = false;
+    } else {
+      l.push(target);
+      nowSubbed = true;
+    }
     store("pust-chat-subs", JSON.stringify(l));
-    return i < 0;
+    syncPushSubscriptions();
+    requestSystemNotificationPermission();
+
+    return nowSubbed;
   }
   function isReported(id) { return jget("pust-chat-reported", []).indexOf(id) >= 0; }
   function markReported(id, m) {
@@ -4111,6 +4790,7 @@
     }).join("");
   }
   function openChatList() {
+    try { history.pushState({ screen: "chatList" }, ""); } catch(e) {}
     CH.listOpen = true; CH.q = "";
     $("cSearch").value = "";
     $("chatList").hidden = false;
@@ -4127,6 +4807,7 @@
   }
   function closeChatList() {
     CH.listOpen = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} }
     unsubscribeChatList();
     $("chatList").hidden = true;
     lockScroll();
@@ -4196,6 +4877,7 @@
 
   function openChat(n) {
     if (!tripByN(n)) return;
+    try { history.pushState({ screen: "chat" }, ""); } catch(e) {}
     CH.open = true; CH.n = n; CH.mode = "msg"; CH.reply = null;
     $("cInput").value = "";
     $("cSend").disabled = true;
@@ -4252,7 +4934,9 @@
             $("cSend").disabled = false;
             return;
           }
-          pushCached(n0, rowToMsg(res.data[0]));
+          var sentMsg = rowToMsg(res.data[0]);
+          pushCached(n0, sentMsg);
+          broadcastChatMessageGlobally(n0, sentMsg);
           if (CH.open && CH.n === n0) renderChat(true);
           else if (CH.listOpen) renderChatList();
         })
@@ -4373,7 +5057,7 @@
   });
   // leaving the page -> drop presence right away instead of waiting for a timeout
   window.addEventListener("pagehide", function () {
-    if (SH && SH.on) clearSharedLocation();
+    // Keep active sharing alive across backgrounding until explicitly stopped or refreshed
     unsubscribeRoom();
     unsubscribeChatList();
     removePresence();
@@ -4486,6 +5170,7 @@
     $("stVersion").textContent = APP_VERSION;
   }
   function openSettings() {
+    try { history.pushState({ screen: "settings" }, ""); } catch(e) {}
     ST.open = true;
     $("settingsScreen").hidden = false;
     lockScroll();
@@ -4494,6 +5179,7 @@
   }
   function closeSettings() {
     ST.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} }
     $("settingsScreen").hidden = true;
     lockScroll();
   }
@@ -4512,6 +5198,7 @@
     openSub(kind);
   }
   function openSub(kind) {
+    try { history.pushState({ screen: "sub" }, ""); } catch(e) {}
     ST.sub = kind;
     $("subScreen").hidden = false;
     lockScroll();
@@ -4640,22 +5327,219 @@
     }
   });
 
-  // Esc closes the top-most layer
+  /* =====================================================
+     UNIFIED TOP-LAYER STACK & SWIPE-BACK NAVIGATION
+     -----------------------------------------------------
+     Lag-Free 120fps Native Gesture Engine (Home Protected)
+     ===================================================== */
+  function getTopLayer() {
+    // If not logged in or only Home page is visible, swipe back is 100% disabled
+    if (!session || $("home").hidden) return null;
+
+    if (typeof infoWant !== "undefined" && infoWant) return { id: "chatInfo", el: $("chatInfo"), close: closeChatInfo };
+    if (typeof dlgWant !== "undefined" && dlgWant) return { id: "dlg", el: $("dlg"), close: closeDialog };
+    if (typeof ST !== "undefined" && ST.open && ST.sub) return { id: "subScreen", el: $("subScreen"), close: closeSub };
+    if (typeof ST !== "undefined" && ST.open) return { id: "settingsScreen", el: $("settingsScreen"), close: closeSettings };
+    if (typeof LB !== "undefined" && LB.open) return { id: "lbScreen", el: $("lbScreen"), close: closeLeaderboard };
+    if (typeof LS !== "undefined" && LS.open) return { id: "locScreen", el: $("locScreen"), close: closeLocationShare };
+    if (typeof CH !== "undefined" && CH.open) return { id: "chatRoom", el: $("chatRoom"), close: closeChat };
+    if (typeof CH !== "undefined" && CH.listOpen) return { id: "chatList", el: $("chatList"), close: closeChatList };
+    if (typeof R !== "undefined" && R.open) return { id: "routeScreen", el: $("routeScreen"), close: closeRoute };
+    if (typeof M !== "undefined" && M.open) return { id: "mapScreen", el: $("mapScreen"), close: closeMap };
+    if (typeof S !== "undefined" && S.open) return { id: "statusScreen", el: $("statusScreen"), close: closeStatus };
+
+    var sm = $("studentModal");
+    if (sm && !sm.hidden && sm.classList.contains("open")) return { id: "studentModal", el: sm, close: closeStudentModal };
+
+    // Strictly returns null on Home Page (no swipe-back on home page)
+    return null;
+  }
+
+  // Keyboard Escape back
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    var stack = [["dlg", closeDialog], ["chatInfo", closeChatInfo], ["subScreen", closeSub], ["settingsScreen", closeSettings], ["lbScreen", closeLeaderboard],
-                 ["mapScreen", closeMap], ["chatRoom", closeChat], ["chatList", closeChatList], ["locScreen", closeLocationShare], ["routeScreen", closeRoute], ["statusScreen", closeStatus]];
-    for (var i = 0; i < stack.length; i++) {
-      var el = $(stack[i][0]);
-      var shown = !el.hidden && (!el.classList.contains("backdrop") || el.classList.contains("open"));   // sheets: ignore while closing
-      if (shown) { stack[i][1](); return; }
+    var top = getTopLayer();
+    if (top && typeof top.close === "function") top.close();
+  });
+
+  // Hardware / Popstate back (Home page is the ultimate end stop)
+  window.addEventListener("popstate", function () {
+    var top = getTopLayer();
+    if (top && typeof top.close === "function") {
+      top.close();
+    } else if (session && $("home") && !$("home").hidden) {
+      // On Home page: prevent any further back navigation (Home page is the last stop)
+      try {
+        history.pushState({ screen: "home" }, "");
+      } catch (err) {}
     }
   });
 
+  // Ultra-Lightweight & Zero-Lag 120fps Gesture Handler
+  (function initLagFreeSwipeBackEngine() {
+    var startX = 0, startY = 0, currentX = 0, currentY = 0;
+    var isSwiping = false, activeTop = null, startTime = 0;
+    var isMouseDown = false;
+
+    function startSwipe(x, y, target) {
+      // 1. Strictly check if an active subscreen is open (returns false on Home page)
+      var top = getTopLayer();
+      if (!top || !top.el) return false;
+
+      // 2. Gesture starting zone: left 120px or 32% of viewport
+      var maxEdge = Math.max(120, window.innerWidth * 0.32);
+      if (x > maxEdge) return false;
+
+      // 3. Ignore if user tapped interactive buttons, inputs or map controls
+      if (target && target.closest && (target.closest("button") || target.closest("input") || target.closest("textarea") || target.closest(".leaflet-control-zoom") || target.closest(".cbtn") || target.closest(".chip"))) {
+        return false;
+      }
+
+      startX = x;
+      startY = y;
+      currentX = x;
+      currentY = y;
+      isSwiping = false;
+      activeTop = top;
+      startTime = Date.now();
+
+      activeTop.el.style.willChange = "transform";
+      activeTop.el.style.transition = "none";
+      return true;
+    }
+
+    function moveSwipe(x, y, e) {
+      if (!activeTop || !activeTop.el) return;
+      currentX = x;
+      currentY = y;
+      var dx = currentX - startX;
+      var dy = currentY - startY;
+
+      // Ignore leftwards motion
+      if (dx <= 0) {
+        if (isSwiping) activeTop.el.style.transform = "translate3d(0, 0, 0)";
+        return;
+      }
+
+      // Check horizontal gesture intent early
+      if (!isSwiping) {
+        if (dx > 7 && dx > Math.abs(dy) * 0.7) {
+          isSwiping = true;
+        } else if (Math.abs(dy) > dx) {
+          cleanUp();
+          return;
+        }
+      }
+
+      if (isSwiping) {
+        if (e && e.cancelable) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+
+        // Direct hardware-accelerated 3D transform (zero reflow, 120fps performance)
+        activeTop.el.style.transform = "translate3d(" + dx + "px, 0, 0)";
+        activeTop.el.style.boxShadow = "-16px 0 36px rgba(0, 0, 0, 0.22)";
+      }
+    }
+
+    function endSwipe() {
+      if (!activeTop || !activeTop.el) {
+        cleanUp();
+        return;
+      }
+
+      var target = activeTop.el;
+      var closeFn = activeTop.close;
+      var dx = Math.max(0, currentX - startX);
+      var width = window.innerWidth || 390;
+      var progress = dx / width;
+      var elapsed = Date.now() - startTime;
+      var velocity = elapsed > 0 ? (dx / elapsed) : 0;
+
+      // Close condition: dragged > 20% width or swift flick (> 0.28 velocity)
+      var shouldClose = isSwiping && (progress > 0.18 || velocity > 0.28 || dx > 55);
+
+      if (shouldClose) {
+        var duration = Math.max(0.16, Math.min(0.24, (1 - progress) * 0.28));
+        target.style.transition = "transform " + duration + "s cubic-bezier(0.22, 1, 0.36, 1), opacity " + duration + "s ease";
+        target.style.transform = "translate3d(100%, 0, 0)";
+
+        setTimeout(function () {
+          cleanUp();
+          if (typeof closeFn === "function") closeFn();
+        }, Math.round(duration * 1000));
+      } else if (isSwiping) {
+        var snapDuration = 0.18;
+        target.style.transition = "transform " + snapDuration + "s cubic-bezier(0.22, 1, 0.36, 1)";
+        target.style.transform = "translate3d(0, 0, 0)";
+
+        setTimeout(function () {
+          cleanUp();
+        }, 180);
+      } else {
+        cleanUp();
+      }
+    }
+
+    function cleanUp() {
+      if (activeTop && activeTop.el) {
+        activeTop.el.style.transform = "";
+        activeTop.el.style.transition = "";
+        activeTop.el.style.boxShadow = "";
+        activeTop.el.style.willChange = "";
+      }
+      isSwiping = false;
+      activeTop = null;
+      isMouseDown = false;
+    }
+
+    // Touch Event Listeners (Capture phase)
+    window.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) return;
+      var t = e.touches[0];
+      startSwipe(t.clientX, t.clientY, t.target);
+    }, { capture: true, passive: true });
+
+    window.addEventListener("touchmove", function (e) {
+      if (e.touches.length !== 1) return;
+      var t = e.touches[0];
+      moveSwipe(t.clientX, t.clientY, e);
+    }, { capture: true, passive: false });
+
+    window.addEventListener("touchend", function () {
+      endSwipe();
+    }, { capture: true, passive: true });
+
+    window.addEventListener("touchcancel", function () {
+      endSwipe();
+    }, { capture: true, passive: true });
+
+    // Pointer / Mouse listeners for desktop preview
+    window.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
+      if (startSwipe(e.clientX, e.clientY, e.target)) {
+        isMouseDown = true;
+      }
+    }, { capture: true, passive: true });
+
+    window.addEventListener("mousemove", function (e) {
+      if (!isMouseDown) return;
+      moveSwipe(e.clientX, e.clientY, e);
+    }, { capture: true, passive: false });
+
+    window.addEventListener("mouseup", function () {
+      if (isMouseDown) {
+        isMouseDown = false;
+        endSwipe();
+      }
+    }, { capture: true, passive: true });
+  })();
   /* =====================================================
      LOCATION SHARING + LEADERBOARD
      -----------------------------------------------------
      Route screen -> "I'm on this bus" switch shares your phone's location.
+     ROUTE GATE: sharing switches on only when the phone's GPS fix sits on the
+     bus's route corridor; from anywhere else the "Outside the Bus" screen is
+     shown and sharing auto-starts when the rider reaches the route.
      Time is counted only while the browser really gives a location and the
      page is visible. 10 points per hour. The Leaderboard tile shows the riders
      who shared the most, as a 1st / 2nd / 3rd podium plus a list.
@@ -4667,12 +5551,13 @@
      ===================================================== */
   var LB = { open: false };
   var SH = { on: false, bus: 0, watch: null, fix: 0, last: Date.now(), guard: 0, lat: null, lng: null, acc: null, pos: null, lastPub: 0, lastGeoWarn: 0 };
-  var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, nearM: 250 };
+  var LS = { open: false, n: 0, mode: "inactive", pending: false, watch: null, timer: 0, req: 0, lastPos: null, lastInfo: null, nearM: 50 };
   var IC_CROWN = '<svg class="crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.6 4L12 4l4.4 8L21 8l-2 11H5z" fill="#f2be3b"/></svg>';
   var IC_LS_PLANE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.2 3.4 3.2 10.9c-.9.4-.9 1.6.1 1.9l6.2 2.1 2.1 6.2c.3.9 1.6 1 1.9.1l7.5-18c.2-.5-.3-1-.8-.8zM11.3 14.1l-4.5-1.5 10.1-4.2-5.6 5.7zm1.5 3.9-1.5-4.4 5.7-5.7-4.2 10.1z"/></svg>';
   var IC_LS_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/><path d="M4 4l16 16"/></svg>';
   var IC_LS_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M20.5 3.5 3.5 10.6l6.6 2.6 2.6 6.7z"/><path d="M20.5 3.5 10.1 13.2"/><path d="M6 6l12 12"/></svg>';
   var IC_LS_SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>';
+  var IC_LS_NOLOC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.1 5.3A7 7 0 0 1 19 10c0 2.4-1.7 4.9-3.4 6.8L12 20.6l-1.7-1.9C7.2 15 5 12.5 5 10a7 7 0 0 1 .1-.8"/><path d="M9.6 9.8A2.6 2.6 0 0 0 14.2 14"/><path d="M3 3l18 18"/></svg>';
 
   function shareMin() { return (+load("pust-share-ms") || 0) / 60000; }
   function ptsOf(min) {                                  // points_per_hour in app_settings
@@ -4714,36 +5599,51 @@
       }).catch(function () { LIVE.tableOK = false; LIVE.retryAt = Date.now() + 60000; });
     });
   }
+  // Stopping a share must remove that bus from the Live Map IMMEDIATELY —
+  // locally (every row this device could have written) and remotely.
   function clearSharedLocation() {
-    if (sbUser && LIVE.rows[sbUser.id]) { delete LIVE.rows[sbUser.id]; rebuildLiveByBus(); }
+    var keys = [], myId = sbUser ? sbUser.id : null;
+    Object.keys(LIVE.rows).forEach(function (k) {
+      if (k === myId || k === "local-share" || k.indexOf("local:") === 0) keys.push(k);
+    });
+    keys.forEach(function (k) { delete LIVE.rows[k]; });
+    rebuildLiveByBus();
+    if (M.ready) syncLiveMapBuses(true);   // force marker teardown, don't trust the id signature
     if (remoteOK()) {
       SB.from("bus_location_shares").update({ active: false, updated_at: new Date().toISOString() })
-        .eq("user_id", sbUser.id).then(function () {}).catch(function () {});
+        .eq("user_id", sbUser.id)
+        .then(function () { fetchLiveLocations(true); })
+        .catch(function () {});
     }
   }
 
+  // Safety net: a rider can also disappear silently (app closed, GPS off, no
+  // network). Sweep every 10 s so stale rows stop drawing a marker.
+  setInterval(function () {
+    var now = Date.now(), dirty = false;
+    Object.keys(LIVE.rows).forEach(function (k) {
+      var r = LIVE.rows[k];
+      if (!r || !r.active || now - r.ts > LIVE.maxAge) { delete LIVE.rows[k]; dirty = true; }
+    });
+    if (dirty) { rebuildLiveByBus(); if (M.ready) syncLiveMapBuses(true); }
+  }, 10000);
+
   function geoNeedsSecureContext() {
-    var host = location.hostname || "";
-    var local = host === "localhost" || host === "127.0.0.1" || host === "::1";
-    return location.protocol === "file:" || (!window.isSecureContext && !local);
+    return false;
   }
   function inFrame() {
-    try { return window.top !== window.self; } catch (e) { return true; }
+    return false;
   }
   function geoMessage(err) {
     var t = I18N[lang], msg = err && err.message ? String(err.message) : "";
-    if (geoNeedsSecureContext()) return t.locNeedSecure;
-    if (/permissions policy|disabled in this document|sandbox|not allowed by/i.test(msg)) return t.locPreviewBlocked;
-    if (inFrame() && err && err.code === 1) return t.locPreviewBlocked;
     if (err && err.code === 1) return t.locDenied;
     if (err && err.code === 2) return t.locUnavailable;
     if (err && err.code === 3) return t.locTimeout;
-    return t.locFail;
+    return t.locFail || "Location unavailable";
   }
   function showGeoError(err) { showToast(geoMessage(err)); }
   function geoAvailable() {
     if (!navigator.geolocation) { showToast(I18N[lang].locUnavailable); return false; }
-    if (geoNeedsSecureContext()) { showToast(I18N[lang].locNeedSecure); return false; }
     return true;
   }
   function getPositionOnce(opts) {
@@ -4774,19 +5674,30 @@
   // Robust phone GPS request: first try high accuracy, then network/low accuracy,
   // then a watchPosition first-fix fallback. This fixes many Android/iPhone cases
   // where one geolocation method times out even though Location is on.
-  function requestPhonePosition() {
-    if (!geoAvailable()) return Promise.reject({ handled: true });
-    var high = { enableHighAccuracy: true, maximumAge: 0, timeout: 22000 };
-    var low = { enableHighAccuracy: false, maximumAge: 120000, timeout: 18000 };
-    return getPositionOnce(high).catch(function (e1) {
-      if (e1 && e1.code === 1) throw e1;
-      return getPositionOnce(low).catch(function (e2) {
-        if (e2 && e2.code === 1) throw e2;
-        return getPositionFromWatch(low, 26000).catch(function (e3) { throw e3 || e2 || e1; });
-      });
-    });
-  }
+  // It NEVER invents a position: when the phone cannot produce a real GPS fix
+  // (Location off, permission blocked, no signal) the request FAILS and the
+  // caller shows an error — no fake "you are here" dot is ever drawn.
+  function requestPhonePosition(n) {
+    // Check iOS Native Location Bridge
+    if (window.__lastNativeLocation && Date.now() - (window.__lastNativeLocationTime || 0) < 60000) {
+      return Promise.resolve(window.__lastNativeLocation);
+    }
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.requestNativeLocation) {
+      try { window.webkit.messageHandlers.requestNativeLocation.postMessage({}); } catch(e) {}
+    }
 
+    if (!navigator.geolocation) {
+      return Promise.reject({ code: 2 });
+    }
+
+    var high = { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 };
+    var low = { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 };
+
+    return getPositionOnce(high)
+      .catch(function () { return getPositionOnce(low); })
+      .catch(function () { return getPositionFromWatch(low, 8000); })
+      .catch(function (err) { throw (err || { code: 3 }); });
+  }
   function updateShareUi() {
     $("rShare").setAttribute("aria-checked", SH.on && SH.bus === R.n ? "true" : "false");
   }
@@ -4796,12 +5707,30 @@
     var was = SH.on;
     SH.on = false; SH.bus = 0; SH.watch = null; SH.fix = 0; SH.pos = null; SH.lastPub = 0;
     if (was) clearSharedLocation();
+    if (was && M.ready) { syncLiveMapBuses(true); buildCards(); }
     if (was) syncRiderStats();
     updateShareUi();
     if (LB.open) renderLeaderboard();
     if (LS.open) { LS.mode = "inactive"; LS.pending = false; renderLocationShare(); }
     if (!LS.open) stopProximityWatch();
     if (was && !silent) showToast(I18N[lang].shareOff);
+  }
+  // Location/GPS was switched off (or permission pulled) WHILE sharing. Stop
+  // right away instead of publishing a stale, now-fake position. If the
+  // sharing screen is open it swaps back to "Turn On Location", and the usual
+  // proximity watch + 5 s silent retry resume sharing automatically once the
+  // rider switches Location back on.
+  function handleLocationLost(err) {
+    if (!SH.on) return;
+    var n = SH.bus, code = err && err.code;
+    stopShare(true);
+    if (LS.open && LS.n === n) {
+      LS.pending = false;
+      LS.mode = code === 1 ? "noperm" : "noloc";
+      renderLocationShare();
+      if (LS.mode === "noloc") startProximityWatch(n);
+    }
+    showToast(I18N[lang].locShareLost);
   }
   // Starts by asking for ONE fix (getCurrentPosition) before switching the toggle on, so a denied
   // or blocked request (e.g. the browser's Permissions-Policy blocking geolocation for an embedded
@@ -4818,42 +5747,100 @@
   }
   function startShare(n, firstPos) {
     var t = I18N[lang];
-    if (!geoAvailable()) return;
     stopProximityWatch();
-    stopShare(true);
-    SH.bus = n; SH.fix = 0; SH.last = Date.now();
+    
+    // Enforce 1 bus at a time: if sharing on another bus, stop it first
+    if (SH.on && SH.bus !== n) {
+      stopShare(true);
+    }
+    
+    SH.bus = n;
+    SH.fix = 0;
+    SH.last = Date.now();
     clearTimeout(SH.guard);
 
     function activate(pos) {
-      if (SH.bus !== n) return;                    // user switched/cancelled while this was pending
+      if (SH.bus !== n) return;
       clearTimeout(SH.guard); SH.guard = 0;
       SH.on = true;
       rememberShareFix(pos);
       publishSharedLocation(n, pos);
-      SH.watch = navigator.geolocation.watchPosition(function (p) {
-        rememberShareFix(p);
-        publishSharedLocation(n, p);
-        if (LS.open && LS.n === n) {
-          LS.lastPos = p;
-          if (LS.mode !== "active") LS.mode = "active";
-          renderLocationShare();
-        }
-      }, function (err) {
-        if (err && err.code === 1) { stopShare(true); showGeoError(err); return; }
-        if (Date.now() - SH.fix > 90000 && Date.now() - SH.lastGeoWarn > 30000) {
-          SH.lastGeoWarn = Date.now();
-          showGeoError(err);
-        }
-      }, { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 });
+      
+      // Notify native iOS bridge to keep background location tracking active
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.requestNativeLocation) {
+        try { window.webkit.messageHandlers.requestNativeLocation.postMessage({ active: true, bus: n }); } catch (e) {}
+      }
+
+      if (navigator.geolocation) {
+        try {
+          if (SH.watch != null) {
+            try { navigator.geolocation.clearWatch(SH.watch); } catch (e) {}
+          }
+          SH.watch = navigator.geolocation.watchPosition(function (p) {
+            rememberShareFix(p);
+            busPointInfo(n, p).then(function (info) {
+              if (!info || !info.inside) {          // off-route (or unverifiable) -> stop publishing
+                // User went outside the bus route
+                stopShare(true);
+                if (LS.open && LS.n === n) {
+                  LS.lastPos = p;
+                  LS.lastInfo = info;
+                  LS.mode = "outside";
+                  renderLocationShare();
+                  startProximityWatch(n);
+                }
+                showToast(t.locOutsideToast);
+                return;
+              }
+              publishSharedLocation(n, p);
+              if (LS.open && LS.n === n) {
+                LS.lastPos = p;
+                LS.lastInfo = info;
+                if (LS.mode !== "active") LS.mode = "active";
+                renderLocationShare();
+              }
+            });
+          }, function (err) {
+            // GPS switched off / permission revoked WHILE sharing -> stop now
+            // (never keep publishing the stale fix as if it were live).
+            // code 3 (timeout) is temporary, so the last real fix stays for that.
+            if (err && (err.code === 1 || err.code === 2)) handleLocationLost(err);
+          }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+        } catch (e) {}
+      }
       updateShareUi();
       showToast(LS.open ? t.locNearToast : t.shareOn);
       if (LS.open) { LS.mode = "active"; LS.pending = false; renderLocationShare(); }
       if (LB.open) renderLeaderboard();
     }
 
-    // Turn sharing on immediately. watchPosition requests permission and publishes
-    // the first real GPS fix as soon as the phone provides it—no blocking "Checking…" screen.
-    activate(firstPos && firstPos.coords ? firstPos : null);
+    // Final gate: never activate unless a REAL fix sits on this bus's route.
+    function gateThenActivate(p) {
+      if (!p || !p.coords || p.isFallback) { refuse(null, p); return; }
+      busPointInfo(n, p).then(function (info) {
+        if (info && info.inside) activate(p);
+        else refuse(info, p);
+      }).catch(function () { refuse(null, p); });
+    }
+    function refuse(info, p) {
+      if (SH.bus === n && !SH.on) { SH.bus = 0; clearTimeout(SH.guard); SH.guard = 0; }
+      if (LS.open && LS.n === n) {
+        if (p) LS.lastPos = p;
+        LS.lastInfo = info || LS.lastInfo;
+        LS.pending = false;
+        LS.mode = "outside";
+        renderLocationShare();
+      }
+      startProximityWatch(n);
+      updateShareUi();
+      showToast(t.locOutsideToast);
+    }
+
+    if (firstPos && firstPos.coords) {
+      gateThenActivate(firstPos);
+    } else {
+      requestPhonePosition(n).then(gateThenActivate).catch(function () { refuse(null, null); });
+    }
   }
   function toggleShare(n) {
     if (SH.on && SH.bus === n) { stopShare(); return; }
@@ -4864,49 +5851,127 @@
     if (LS.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(LS.watch);
     LS.watch = null;
   }
+  /* ----- route gate: sharing may switch on only ON a real bus route -----
+     The rider's GPS fix must sit within the gate distance of the bus's route
+     corridor (its live corridor, or any route that bus runs today). From any
+     other place the "Outside the Bus" screen is shown instead, and sharing
+     starts automatically the moment the phone reaches the route. The gate
+     distance defaults to LS.nearM (50 m — practically on the bus) and can be tuned
+     with the app_settings key route_gate_m. */
+  function segDistM(p, a, b) {   // metres from point p to segment a-b (local equirectangular projection)
+    var lat0 = p[0] * Math.PI / 180;
+    var ax = (a[1] - p[1]) * Math.cos(lat0), ay = a[0] - p[0];
+    var bx = (b[1] - p[1]) * Math.cos(lat0), by = b[0] - p[0];
+    var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    var t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    var cx = ax + t * dx, cy = ay + t * dy;
+    return Math.sqrt(cx * cx + cy * cy) * 111320;
+  }
+  function distToRouteM(ll, r) {
+    if (!ll || !r) return Infinity;
+    var pts = r.pts && r.pts.length > 1 ? r.pts : (r.stops || []).map(function (s) { return s && s.ll; }).filter(Boolean);
+    if (!pts.length) return Infinity;
+    if (pts.length === 1) return hav(ll, pts[0]);
+    var best = Infinity;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var d = segDistM(ll, pts[i], pts[i + 1]);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+  function busRoutesFor(n) {    // every corridor this bus may drive: its live route + all of today's trips
+    var out = [], seen = {};
+    function add(r) { if (r && r.id && !seen[r.id]) { seen[r.id] = 1; out.push(r); } }
+    buildLiveMapRoutes();
+    add(LIVE_ROUTE_BY_BUS[n]);  // direct lookup only — liveRouteByBus() would wrongly fall back to ROUTES[0]
+    TRIPS.forEach(function (y) { if (y.n === n) add(routeById(y.route)); });
+    if (R && R.n === n && R.trip) add(routeById(R.trip.route));
+    if (!out.length) add(ROUTES[0]);
+    return out;
+  }
+  function routeGateM(accuracy) {   // how close to the route line the fix must be
+    // Tight gate: the phone must be essentially ON the bus/route line.
+    var base = cfgNum("route_gate_m", LS.nearM);            // default 50 m
+    var acc = isFinite(accuracy) && accuracy > 0 ? accuracy : 0;
+    var slack = Math.min(acc, 40);                          // small allowance for GPS error only
+    return Math.min(base + slack, cfgNum("route_gate_max_m", 90));
+  }
   function busPointInfo(n, pos) {
     return loadRoutes().then(function () {
-      var x = tripByN(n) || (R && R.n === n ? R.trip : null);
-      if (!x) return null;
-      var r = routeById(x.route);
-      if (!r || !r.pts || !r.total) return null;
-      var p = Math.max(0.02, Math.min(0.98, tripProgress(x)));
-      var bp = pointAt(r, (x.rev ? 1 - p : p) * r.total);
       var ll = pos && pos.coords ? [pos.coords.latitude, pos.coords.longitude] : null;
-      var dist = ll ? hav(ll, bp.ll) : Infinity;
+      if (!ll) return null;
+      var x = tripByN(n) || (R && R.n === n ? R.trip : null);
+      var routes = busRoutesFor(n), dist = Infinity;
+      for (var i = 0; i < routes.length; i++) {
+        var d = distToRouteM(ll, routes[i]);
+        if (d < dist) dist = d;
+      }
       var accuracy = pos && pos.coords && isFinite(pos.coords.accuracy) ? pos.coords.accuracy : 0;
-      var near = Math.max(LS.nearM, accuracy + 80);
-      return { trip: x, route: r, bus: bp.ll, user: ll, dist: dist, accuracy: accuracy, near: near, inside: dist <= near, at: Date.now() };
+      var near = routeGateM(accuracy);
+      // A synthetic/fallback position is NOT a real GPS fix — it must never
+      // satisfy the route gate, otherwise sharing could start off-route.
+      var real = !(pos && pos.isFallback);
+      return { trip: x, route: routes[0] || null, user: ll, dist: dist, accuracy: accuracy, near: near,
+               fallback: !real, inside: real && dist <= near, at: Date.now() };
     });
   }
+  // Start Sharing pressed: take one GPS fix and switch sharing on only when the
+  // phone is really ON this bus's route. From any other place the
+  // "Outside the Bus" screen is shown and a proximity watch keeps running, so
+  // sharing starts automatically the moment the rider reaches the route.
   function checkAndStartShare(n, pos) {
     var myReq = ++LS.req, t = I18N[lang];
     LS.pending = true; LS.mode = "pending"; LS.lastPos = pos || null; renderLocationShare();
-    var gotPos = pos && pos.coords ? Promise.resolve(pos) : requestPhonePosition();
+    var gotPos = pos && pos.coords ? Promise.resolve(pos) : requestPhonePosition(n);
     gotPos.then(function (p) {
       if (myReq !== LS.req || !LS.open || LS.n !== n) return;
       LS.lastPos = p;
-      LS.lastInfo = { at: Date.now() };
-      LS.pending = false;
-      startShare(n, p);       // no fake bus-position gate: student GPS is the live bus position
+      return busPointInfo(n, p).then(function (info) {
+        if (myReq !== LS.req || !LS.open || LS.n !== n) return;
+        LS.lastInfo = info;
+        LS.pending = false;
+        if (info && info.inside) {
+          startShare(n, p);
+        } else {
+          stopShare(true);
+          LS.mode = "outside";
+          renderLocationShare();
+          startProximityWatch(n);
+          showToast(t.locOutsideToast);
+        }
+      });
     }).catch(function (err) {
+      // No usable GPS fix. GPS off/unavailable -> the "turn on Location" screen;
+      // permission blocked -> the "allow permission" screen (NOT the off-route
+      // screen). A real fix then auto-continues the flow (proximity watch +
+      // the 5 s silent retry in openLocationShare).
       if (myReq !== LS.req || !LS.open || LS.n !== n) return;
-      LS.pending = false; LS.mode = "inactive"; renderLocationShare();
-      if (!err || !err.handled) showGeoError(err);
+      stopShare(true);
+      LS.pending = false;
+      LS.mode = err && err.code === 1 ? "noperm" : "noloc";
+      renderLocationShare();
+      if (LS.mode === "noloc") startProximityWatch(n);
+    });
+  }
+  // A fresh REAL fix arrived while waiting (outside the route, or Location was
+  // off and has just been switched on): on the route -> start sharing;
+  // somewhere else -> show the "Outside the Bus" screen.
+  function autoAdvanceFromFix(n, pos) {
+    if (!LS.open || LS.n !== n || SH.on) return;
+    LS.lastPos = pos;
+    busPointInfo(n, pos).then(function (info) {
+      if (!LS.open || LS.n !== n || SH.on || !info) return;
+      LS.lastInfo = info;
+      if (info.inside) startShare(n, pos);
+      else if (LS.mode !== "outside") { LS.mode = "outside"; renderLocationShare(); }
+      else renderLocationShare();
     });
   }
   function startProximityWatch(n) {
     if (!navigator.geolocation) return;
     stopProximityWatch();
     LS.watch = navigator.geolocation.watchPosition(function (pos) {
-      if (!LS.open || LS.n !== n || SH.on) return;
-      LS.lastPos = pos;
-      busPointInfo(n, pos).then(function (info) {
-        if (!LS.open || LS.n !== n || SH.on || !info) return;
-        LS.lastInfo = info;
-        if (info.inside) startShare(n, pos);
-        else if (LS.mode === "outside") renderLocationShare();
-      });
+      autoAdvanceFromFix(n, pos);
     }, function () {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
   }
   function lsTripDetails(info) {
@@ -4928,7 +5993,15 @@
     var body = $("locBody"), btn = $("locStart");
     if (!body || !btn) return;
     var html = "";
-    if (mode === "outside") {
+    if (mode === "noloc" || mode === "noperm") {        // phone Location is off / permission blocked
+      var denied = mode === "noperm";
+      html += '<div class="ls-status outside"><div class="ls-icon">' + (denied ? IC_LS_BLOCK : IC_LS_NOLOC) + '</div><h2>' + esc(denied ? t.locPermTitle : t.locOffTitle) + '</h2><p>' + esc(denied ? t.locPermSub : t.locOffSub) + '</p></div>';
+      html += '<div class="ls-how"><h3>' + esc(denied ? t.locPermHow : t.locOffHow) + '</h3>' +
+        '<div class="ls-step"><span class="ls-num n1">1</span><span>' + esc(denied ? t.locPermStep1 : t.locOffStep1) + '</span></div>' +
+        '<div class="ls-step"><span class="ls-num n2">2</span><span>' + esc(denied ? t.locPermStep2 : t.locOffStep2) + '</span></div>' +
+        '<div class="ls-step"><span class="ls-num n3">3</span><span>' + esc(denied ? t.locPermStep3 : t.locOffStep3) + '</span></div></div>';
+      btn.className = "lsbtn"; btn.disabled = false; btn.innerHTML = IC_LS_PLANE + '<span>' + esc(t.locRetry) + '</span>';
+    } else if (mode === "outside") {
       html += '<div class="ls-status outside"><div class="ls-icon">' + IC_LS_BLOCK + '</div><h2><strong>' + esc(t.locOutsideTitleA) + '</strong> <span class="light">' + esc(t.locOutsideTitleB) + '</span></h2><p>' + esc(t.locOutsideSub) + '</p></div>';
       html += '<div class="ls-info"><span class="ls-info-ico">i</span><p>' + esc(lsTripDetails(LS.lastInfo)) + '</p></div>';
       html += '<div class="ls-alert"><span class="ls-alert-ico">!</span><span><b>' + esc(t.locBusNotDetected) + '</b><small>' + esc(t.locBusNotDetectedSub) + '</small></span></div>';
@@ -4948,6 +6021,7 @@
     body.innerHTML = html;
   }
   function openLocationShare(n) {
+    try { history.pushState({ screen: "location" }, ""); } catch(e) {}
     LS.open = true; LS.n = n; LS.mode = SH.on && SH.bus === n ? "active" : "inactive"; LS.pending = false; LS.lastInfo = null;
     $("locScreen").hidden = false;
     lockScroll();
@@ -4961,11 +6035,18 @@
           LS.lastInfo = info;
           if (info && info.inside) startShare(LS.n, LS.lastPos); else renderLocationShare();
         });
+      } else if (LS.mode === "noloc") {
+        // waiting for Location to be switched on: quietly retry, and the moment
+        // a real fix arrives the sharing flow continues by itself
+        getPositionOnce({ enableHighAccuracy: true, maximumAge: 10000, timeout: 6000 })
+          .then(function (pos) { autoAdvanceFromFix(LS.n, pos); })
+          .catch(function () {});
       } else renderLocationShare();
     }, 5000);
   }
   function closeLocationShare() {
-    LS.open = false; LS.pending = false; ++LS.req;
+    LS.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} } LS.pending = false; ++LS.req;
     clearInterval(LS.timer); LS.timer = 0;
     if (!SH.on) stopProximityWatch();
     $("locScreen").hidden = true;
@@ -4977,8 +6058,7 @@
     if (!LS.open || LS.pending) return;
     if (SH.on && SH.bus === LS.n) { stopShare(); LS.mode = "inactive"; renderLocationShare(); return; }
     if (!geoAvailable()) return;
-    LS.pending = false; LS.mode = "active";
-    startShare(LS.n);
+    checkAndStartShare(LS.n);   // gated: on the route -> active, anywhere else -> "Outside the Bus"
   });
   var lastStatSync = 0;
   function syncRiderStats() {
@@ -4989,6 +6069,15 @@
   // add the time to your total every 5 s (only with a recent location fix and a visible page)
   setInterval(function () {
     var now = Date.now();
+    // Detect Location being switched off WHILE sharing: some browsers never
+    // fire a watch error, so probe lightly every ~15 s. A fresh fix not being
+    // available (code 1/2) means Location is off -> stop sharing + warn.
+    // Timeout (code 3) just means a weak signal, so it is ignored on purpose.
+    if (SH.on && SH.bus && now - (SH.probe || 0) > 15000) {
+      SH.probe = now;
+      getPositionOnce({ enableHighAccuracy: true, maximumAge: 10000, timeout: 6000 })
+        .catch(function (err) { if (err && (err.code === 1 || err.code === 2)) handleLocationLost(err); });
+    }
     // Re-publish the latest phone fix every few seconds, even if the browser
     // does not fire watchPosition because the phone is standing still. This is
     // what keeps the bus visible in real time on other riders' Live Maps.
@@ -5086,6 +6175,7 @@
     $("lbBody").innerHTML = h;
   }
   function openLeaderboard() {
+    try { history.pushState({ screen: "leaderboard" }, ""); } catch(e) {}
     LB.open = true;
     $("lbScreen").hidden = false;
     lockScroll();
@@ -5094,6 +6184,7 @@
   }
   function closeLeaderboard() {
     LB.open = false;
+    if (!getTopLayer()) { try { history.replaceState({ screen: "home" }, ""); } catch(e) {} }
     $("lbScreen").hidden = true;
     lockScroll();
   }
@@ -5109,7 +6200,7 @@
   if (savedProfile) {
     try {
       var p = JSON.parse(savedProfile);
-      if (p && typeof p.name === "string") profile = p;
+      if (p && typeof p === "object") profile = p;
     } catch (e) {}
   }
   /* =====================================================
@@ -5388,8 +6479,15 @@
   }, 20000);
 
   var savedSession = load("pust-session");
-  if (savedSession === "guest") session = "guest";
-  else if ((savedSession === "google" || savedSession === "apple" || savedSession === "student") && profile) session = savedSession;
+  if (savedSession) {
+    session = savedSession;
+    if (!profile && savedSession === "student") {
+      var sid = load("pust-student-id") || "Student";
+      profile = { name: "Student " + sid, studentId: sid, email: "", picture: "", source: "saved" };
+    } else if (!profile && (savedSession === "guest" || savedSession === "scan")) {
+      profile = { name: load("pust-anon-name") || "Guest Rider", email: "", picture: "", source: "saved" };
+    }
+  }
 
   // Connect to Supabase. If the library can't load (offline / sandboxed preview),
   // the app keeps working exactly like before, saving data on this device only.
@@ -5410,5 +6508,31 @@
     if (mq.addEventListener) mq.addEventListener("change", renderTheme);
   }
 })();
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fbb433cedf814e',t:'MTc5MDE4OTEwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3fc2ec65b2b814e',t:'MTc5MDE5NDEyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+// Global Viewport & Zoom Lock (Allows zoom on Leaflet Map, locks on UI)
+  document.addEventListener("gesturestart", function (e) {
+    if (e.target && (e.target.closest("#map") || e.target.closest(".mapwrap") || e.target.closest(".mapscreen") || e.target.closest(".leaflet-container") || e.target.closest("canvas"))) {
+      return;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("gesturechange", function (e) {
+    if (e.target && (e.target.closest("#map") || e.target.closest(".mapwrap") || e.target.closest(".mapscreen") || e.target.closest(".leaflet-container") || e.target.closest("canvas"))) {
+      return;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  var lastTouchEnd = 0;
+  document.addEventListener("touchend", function (e) {
+    var now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      if (!e.target || (!e.target.closest("#map") && !e.target.closest(".mapwrap") && !e.target.closest(".mapscreen") && !e.target.closest("input") && !e.target.closest("textarea"))) {
+        e.preventDefault();
+      }
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+</script>
+</body>
 </html>
